@@ -103,7 +103,7 @@ void main() {
   });
 
   test('synthesizes one chunk into a playable 44.1 kHz WAV', () async {
-    await speaker.speak(text: 'ကခ', lengthScale: 1.0);
+    final Uint8List? downloadable = await speaker.speak(text: 'ကခ', lengthScale: 1.0);
 
     // "ကခ" -> blank,က,blank,ခ,blank = 5 tokens × 2 frames
     expect(models.encodedTokenCounts, <int>[5]);
@@ -114,6 +114,7 @@ void main() {
     expect(header.getUint32(24, Endian.little), MyanmarTtsConfig.SAMPLE_RATE);
     // ISTFT output = frames × hop samples
     expect(audio.played.single.length, _WAV_HEADER_BYTES + 10 * MyanmarTtsConfig.HOP_LENGTH * _BYTES_PER_SAMPLE);
+    expect(downloadable, audio.played.single);
   });
 
   test('length scale changes the number of frames', () async {
@@ -122,10 +123,13 @@ void main() {
   });
 
   test('plays each sentence in order and skips chunks with nothing to say', () async {
-    await speaker.speak(text: 'က။ hello။ ခဂ။', lengthScale: 1.0);
+    final Uint8List? downloadable = await speaker.speak(text: 'က။ hello။ ခဂ။', lengthScale: 1.0);
 
     expect(models.encodedTokenCounts, <int>[5, 7]);
     expect(audio.played, hasLength(2));
+    // Download ဖိုင်သည် ဖွင့်ခဲ့သော အပိုင်းအားလုံးကို ပေါင်းထားသည်
+    final int playedData = audio.played.fold<int>(0, (int sum, Uint8List wav) => sum + wav.length - _WAV_HEADER_BYTES);
+    expect(downloadable!.length, _WAV_HEADER_BYTES + playedData);
   });
 
   test('synthesizes the next sentence while the current one plays', () async {
@@ -156,12 +160,12 @@ void main() {
 
   test('stop during playback does not start the next sentence', () async {
     audio.holdPlayback = Completer<void>();
-    final Future<void> speaking = speaker.speak(text: 'က။ ခ။ ဂ။', lengthScale: 1.0);
+    final Future<Uint8List?> speaking = speaker.speak(text: 'က။ ခ။ ဂ။', lengthScale: 1.0);
     await _waitUntil(() => audio.played.isNotEmpty);
 
     await speaker.stop();
-    await speaking;
 
+    expect(await speaking, isNull, reason: 'partial audio is not offered for download');
     expect(audio.played, hasLength(1));
     expect(audio.stopCallCount, 1);
   });

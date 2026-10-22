@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rnd_text_to_speech/config/tts_config.dart';
+import 'package:rnd_text_to_speech/models/audio_save_result.dart';
 import 'package:rnd_text_to_speech/models/burmese_speech_state.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/providers/burmese_speech_controller.dart';
+import 'package:rnd_text_to_speech/services/audio_file_saver.dart';
 
+import '../support/fake_audio_file_saver.dart';
 import '../support/fake_on_device_speaker.dart';
 import '../support/fake_tts_service.dart';
 
@@ -19,11 +22,13 @@ const String _ON_DEVICE = TtsConfig.ON_DEVICE_ENGINE_ID;
 Future<ProviderContainer> _createDetectedContainer({
   FakeTtsService? system,
   FakeOnDeviceSpeaker? onDevice,
+  FakeAudioFileSaver? saver,
 }) async {
   final ProviderContainer container = ProviderContainer(
     overrides: [
       ttsServiceProvider.overrideWithValue(system ?? FakeTtsService()),
       onDeviceSpeakerProvider.overrideWithValue(onDevice ?? FakeOnDeviceSpeaker()),
+      audioFileSaverProvider.overrideWithValue(saver ?? FakeAudioFileSaver()),
     ],
   );
   addTearDown(container.dispose);
@@ -243,6 +248,71 @@ void main() {
 
       expect(_stateOf(failing).error, SpeechError.speakFailed);
       expect(_stateOf(failing).platformMessage, 'speak failed');
+    });
+  });
+
+  group('download', () {
+    test('audio becomes downloadable after on-device speech finishes', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+      final FakeAudioFileSaver saver = FakeAudioFileSaver();
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice, saver: saver);
+      expect(_stateOf(container).canDownload, isFalse);
+
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+      expect(_stateOf(container).canDownload, isTrue);
+
+      final AudioSaveResult result = await _controllerOf(container).downloadAudio();
+      expect(result.status, AudioSaveStatus.saved);
+      expect(saver.savedWav, onDevice.spokenAudio);
+      expect(saver.savedFileName, matches(RegExp(r'^myanmartts_\d{8}_\d{6}\.wav$')));
+      expect(_stateOf(container).isSavingAudio, isFalse);
+    });
+
+    test('a stopped reading leaves nothing to download', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker()..pendingSpeak = Completer<void>();
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+
+      final Future<void> speaking = _controllerOf(container).speak(text: _BURMESE_TEXT);
+      await pumpEventQueue();
+      await _controllerOf(container).stop();
+      await speaking;
+
+      expect(_stateOf(container).hasDownloadableAudio, isFalse);
+    });
+
+    test('editing the text or switching engine discards the audio', () async {
+      final ProviderContainer container = await _createDetectedContainer(system: _systemWithBurmese());
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+      _controllerOf(container).discardGeneratedAudio();
+      expect(_stateOf(container).hasDownloadableAudio, isFalse);
+
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+      await _controllerOf(container).selectEngine(engineName: _BURMESE_ENGINE);
+      expect(_stateOf(container).hasDownloadableAudio, isFalse);
+      expect(_stateOf(container).supportsDownload, isFalse);
+    });
+
+    test('a cancelled save dialog is reported as cancelled', () async {
+      final ProviderContainer container =
+          await _createDetectedContainer(saver: FakeAudioFileSaver(isCancelled: true));
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+
+      final AudioSaveResult result = await _controllerOf(container).downloadAudio();
+
+      expect(result.status, AudioSaveStatus.cancelled);
+      expect(_stateOf(container).canDownload, isTrue, reason: 'the user can try again');
+    });
+
+    test('a failed save keeps the platform message', () async {
+      final ProviderContainer container = await _createDetectedContainer(
+        saver: FakeAudioFileSaver(error: const AudioSaveException(platformMessage: 'disk full')),
+      );
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+
+      final AudioSaveResult result = await _controllerOf(container).downloadAudio();
+
+      expect(result.status, AudioSaveStatus.failed);
+      expect(result.platformMessage, 'disk full');
     });
   });
 }

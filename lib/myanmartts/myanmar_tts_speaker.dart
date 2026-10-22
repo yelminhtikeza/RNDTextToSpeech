@@ -23,7 +23,9 @@ abstract interface class OnDeviceSpeaker {
 
   /// ဖတ်ပြီးဆုံးသည် သို့မဟုတ် [stop] ခေါ်သည်အထိ စောင့်သည်။
   /// [lengthScale] 1.0 = ပုံမှန်၊ ငယ်လေ မြန်လေ။
-  Future<void> speak({required String text, required double lengthScale});
+  /// အဆုံးထိ ဖတ်ပြီးပါက ကြားခဲ့သော အသံအားလုံးကို WAV တစ်ဖိုင်အဖြစ် ပြန်ပေးသည် (download အတွက်)၊
+  /// ရပ်လိုက်ပါက အပိုင်းလိုက်သာ ရှိ၍ null ပြန်ပေးသည်။
+  Future<Uint8List?> speak({required String text, required double lengthScale});
 
   Future<void> stop();
 
@@ -43,6 +45,7 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
   static const BurmeseTokenizer _TOKENIZER = BurmeseTokenizer();
   static const LengthRegulator _REGULATOR = LengthRegulator();
   static const TextChunker _CHUNKER = TextChunker(maxCharacters: MyanmarTtsConfig.MAX_CHUNK_CHARACTERS);
+  static const WavEncoder _WAV_ENCODER = WavEncoder();
 
   final MyanmarTtsModels _models;
   final AudioOutput _audioOutput;
@@ -63,12 +66,13 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
   bool hasSpeakableText({required String text}) => _TOKENIZER.hasSpeakableText(text: text);
 
   @override
-  Future<void> speak({required String text, required double lengthScale}) async {
+  Future<Uint8List?> speak({required String text, required double lengthScale}) async {
     await load();
     _isStopRequested = false;
     final List<String> chunks =
         _CHUNKER.split(text: text).where((String chunk) => hasSpeakableText(text: chunk)).toList();
-    if (chunks.isEmpty) return;
+    if (chunks.isEmpty) return null;
+    final List<Uint8List> played = <Uint8List>[];
 
     // အပိုင်း i ဖွင့်နေစဉ် အပိုင်း i+1 ကို ကြိုထုတ်ထားသဖြင့် ဝါကျကြား တိတ်ဆိတ်ချိန် မရှိသလောက် ဖြစ်သည်။
     Future<Uint8List>? pending = _synthesize(text: chunks.first, lengthScale: lengthScale);
@@ -78,12 +82,14 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
         pending = index + 1 < chunks.length
             ? _synthesize(text: chunks[index + 1], lengthScale: lengthScale)
             : null;
-        if (_isStopRequested) return;
+        if (_isStopRequested) return null;
         await _audioOutput.playWav(wav: wav);
-        if (_isStopRequested) return;
+        if (_isStopRequested) return null;
+        played.add(wav);
       }
+      return _WAV_ENCODER.concatenatePcm16(wavs: played, sampleRate: MyanmarTtsConfig.SAMPLE_RATE);
     } on SynthesisCancelledException {
-      return;
+      return null;
     } finally {
       // ရပ်လိုက်၍ မစောင့်တော့သော ကြိုထုတ်မှု၏ cancel exception ကို unhandled မဖြစ်စေရန်။
       pending?.ignore();

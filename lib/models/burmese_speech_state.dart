@@ -39,6 +39,8 @@ class BurmeseSpeechState {
     this.speechRate = TtsConfig.SPEECH_RATE_DEFAULT,
     this.pitch = TtsConfig.PITCH_DEFAULT,
     this.maxInputLength = TtsConfig.MAX_INPUT_LENGTH_FALLBACK,
+    this.hasDownloadableAudio = false,
+    this.isSavingAudio = false,
     this.error,
     this.platformMessage,
   });
@@ -53,6 +55,10 @@ class BurmeseSpeechState {
   final double speechRate;
   final double pitch;
   final int maxInputLength;
+
+  /// နောက်ဆုံး အဆုံးထိ ဖတ်ခဲ့သော MyanmarTTS အသံ ရှိ/မရှိ — စာပြင်လျှင်၊ engine ပြောင်းလျှင် ရှင်းသည်။
+  final bool hasDownloadableAudio;
+  final bool isSavingAudio;
   final SpeechError? error;
 
   /// Engine မှ ပြန်လာသော မူရင်းစာ — ပြင်ဆင်ခြင်းမပြုဘဲ ပြရန်။
@@ -67,6 +73,11 @@ class BurmeseSpeechState {
   /// MyanmarTTS model တွင် pitch ထိန်းချုပ်မှု မပါသဖြင့် Android engine တွင်သာ ရသည်။
   bool get supportsPitch => !isOnDeviceSelected;
 
+  /// ထုတ်ထားသော အသံကို MyanmarTTS တွင်သာ ရနိုင်သည် — Android engine များ၏ ဖိုင်ထုတ်မှု မယုံကြည်ရ၍ (third-party)။
+  bool get supportsDownload => isOnDeviceSelected;
+
+  bool get canDownload => supportsDownload && hasDownloadableAudio && !isSpeaking && !isSavingAudio;
+
   /// Engine ရှာပြီးမှ (load မပြီးသေးလည်း) engine ပြောင်းရန် စာရင်းကို ပြနိုင်သည်။
   bool get canChooseEngine => engines.isNotEmpty && status != SpeechStatus.detecting && !isSpeaking;
 
@@ -77,6 +88,8 @@ class BurmeseSpeechState {
     double? speechRate,
     double? pitch,
     int? maxInputLength,
+    bool? hasDownloadableAudio,
+    bool? isSavingAudio,
   }) {
     // error/platformMessage ကို copy မလုပ်ခြင်းမှာ လုပ်ဆောင်ချက်အသစ်တိုင်း ယခင်အမှားကို ရှင်းရန် ဖြစ်သည်။
     return BurmeseSpeechState(
@@ -86,6 +99,8 @@ class BurmeseSpeechState {
       speechRate: speechRate ?? this.speechRate,
       pitch: pitch ?? this.pitch,
       maxInputLength: maxInputLength ?? this.maxInputLength,
+      hasDownloadableAudio: hasDownloadableAudio ?? this.hasDownloadableAudio,
+      isSavingAudio: isSavingAudio ?? this.isSavingAudio,
     );
   }
 
@@ -101,6 +116,8 @@ class BurmeseSpeechState {
       speechRate: speechRate,
       pitch: pitch,
       maxInputLength: maxInputLength,
+      hasDownloadableAudio: hasDownloadableAudio,
+      isSavingAudio: isSavingAudio,
       error: error,
       platformMessage: platformMessage,
     );

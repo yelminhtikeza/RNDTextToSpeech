@@ -217,6 +217,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pitch is not adjustable with MyanmarTTS.'**
   String get pitchNotSupported;
+
+  /// No description provided for @downloadButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get downloadButton;
+
+  /// No description provided for @downloadSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio saved.'**
+  String get downloadSaved;
+
+  /// No description provided for @downloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the audio.'**
+  String get downloadFailed;
+
+  /// No description provided for @downloadHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Speak the text first to download its audio.'**
+  String get downloadHint;
 }
 
 class _AppLocalizationsDelegate

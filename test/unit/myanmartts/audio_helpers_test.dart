@@ -51,6 +51,20 @@ void main() {
     });
   });
 
+  test('WavEncoder concatenates WAVs into one file with a corrected header', () {
+    const WavEncoder encoder = WavEncoder();
+    final Uint8List first = encoder.encodePcm16(samples: Float32List.fromList(<double>[0.5, -0.5]), sampleRate: 44100);
+    final Uint8List second = encoder.encodePcm16(samples: Float32List.fromList(<double>[0.25]), sampleRate: 44100);
+
+    final Uint8List combined = encoder.concatenatePcm16(wavs: <Uint8List>[first, second], sampleRate: 44100);
+    final ByteData data = ByteData.sublistView(combined);
+
+    expect(combined.length, 44 + 6);
+    expect(data.getUint32(4, Endian.little), 36 + 6);
+    expect(data.getUint32(40, Endian.little), 6);
+    expect(combined.sublist(44), <int>[...first.sublist(44), ...second.sublist(44)]);
+  });
+
   group('TextChunker', () {
     const TextChunker chunker = TextChunker(maxCharacters: 10);
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_theme.dart';
 import '../config/tts_config.dart';
 import '../l10n/app_localizations.dart';
+import '../models/audio_save_result.dart';
 import '../models/burmese_speech_state.dart';
 import '../providers/burmese_speech_controller.dart';
 import '../widgets/app_button.dart';
@@ -54,6 +55,7 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
               minLines: 4,
               maxLines: 10,
               maxLength: speechState.maxInputLength,
+              onChanged: (_) => controller.discardGeneratedAudio(),
               decoration: InputDecoration(
                 labelText: l10n.inputLabel,
                 hintText: l10n.inputHint,
@@ -102,10 +104,37 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
                 ),
               ],
             ),
+            if (speechState.supportsDownload) ...<Widget>[
+              const SizedBox(height: AppTheme.SPACING),
+              AppButton(
+                label: l10n.downloadButton,
+                icon: Icons.download,
+                variant: AppButtonVariant.outlined,
+                isLoading: speechState.isSavingAudio,
+                onPressed: speechState.canDownload ? () => _downloadAudio(controller: controller, l10n: l10n) : null,
+              ),
+              if (!speechState.hasDownloadableAudio)
+                Text(l10n.downloadHint, style: Theme.of(context).textTheme.bodySmall),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _downloadAudio({
+    required BurmeseSpeechController controller,
+    required AppLocalizations l10n,
+  }) async {
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final AudioSaveResult result = await controller.downloadAudio();
+    final String? message = switch (result.status) {
+      AudioSaveStatus.saved => l10n.downloadSaved,
+      AudioSaveStatus.failed => result.platformMessage ?? l10n.downloadFailed,
+      // အသုံးပြုသူကိုယ်တိုင် dialog ပိတ်ခြင်းဖြစ်၍ ဘာမျှ မပြပါ။
+      AudioSaveStatus.cancelled => null,
+    };
+    if (message != null) messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Validation/ဖတ်မှု အမှားကို TextField အောက်တွင် ပြသည်။ Engine ၏ မူရင်းစာ ရှိပါက ထိုစာကိုသာ ပြသည်။

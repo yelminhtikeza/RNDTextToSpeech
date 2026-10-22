@@ -41,6 +41,7 @@ dependencies:
   intl: ^0.20.2
   flutter_onnxruntime: ^1.9.0
   audioplayers: ^6.7.1
+  flutter_file_dialog: ^3.0.3
 
 dev_dependencies:
   flutter_test:

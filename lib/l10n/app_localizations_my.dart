@@ -75,4 +75,16 @@ class AppLocalizationsMy extends AppLocalizations {
   @override
   String get pitchNotSupported =>
       'MyanmarTTS တွင် အသံအနိမ့်အမြင့်ကို ချိန်၍ မရပါ။';
+
+  @override
+  String get downloadButton => 'ဒေါင်းလုဒ်';
+
+  @override
+  String get downloadSaved => 'အသံဖိုင် သိမ်းပြီးပါပြီ။';
+
+  @override
+  String get downloadFailed => 'အသံဖိုင်ကို သိမ်း၍ မရပါ။';
+
+  @override
+  String get downloadHint => 'အသံကို ဒေါင်းလုဒ်လုပ်ရန် စာကို အရင်ဖတ်ပါ။';
 }

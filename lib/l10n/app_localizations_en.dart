@@ -73,4 +73,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pitchNotSupported => 'Pitch is not adjustable with MyanmarTTS.';
+
+  @override
+  String get downloadButton => 'Download';
+
+  @override
+  String get downloadSaved => 'Audio saved.';
+
+  @override
+  String get downloadFailed => 'Could not save the audio.';
+
+  @override
+  String get downloadHint => 'Speak the text first to download its audio.';
 }

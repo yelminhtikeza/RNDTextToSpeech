@@ -5,6 +5,7 @@ import 'package:rnd_text_to_speech/main.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/providers/burmese_speech_controller.dart';
 
+import '../support/fake_audio_file_saver.dart';
 import '../support/fake_on_device_speaker.dart';
 import '../support/fake_tts_service.dart';
 
@@ -15,18 +16,23 @@ Future<void> _pumpApp(
   WidgetTester tester, {
   FakeTtsService? system,
   FakeOnDeviceSpeaker? onDevice,
+  FakeAudioFileSaver? saver,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         ttsServiceProvider.overrideWithValue(system ?? FakeTtsService()),
         onDeviceSpeakerProvider.overrideWithValue(onDevice ?? FakeOnDeviceSpeaker()),
+        audioFileSaverProvider.overrideWithValue(saver ?? FakeAudioFileSaver()),
       ],
       child: const RndTextToSpeechApp(),
     ),
   );
   await tester.pumpAndSettle();
 }
+
+OutlinedButton _downloadButton(WidgetTester tester) =>
+    tester.widget<OutlinedButton>(find.ancestor(of: find.text('Download'), matching: find.byType(OutlinedButton)));
 
 FilledButton _speakButton(WidgetTester tester) =>
     tester.widget<FilledButton>(find.ancestor(of: find.text('Speak'), matching: find.byType(FilledButton)));
@@ -87,5 +93,48 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('No Burmese Unicode text'), findsOneWidget);
     expect(onDevice.spokenText, isNull);
+  });
+
+  testWidgets('Download saves the spoken audio and confirms it', (WidgetTester tester) async {
+    final FakeAudioFileSaver saver = FakeAudioFileSaver();
+    await _pumpApp(tester, saver: saver);
+
+    expect(_downloadButton(tester).onPressed, isNull);
+    expect(find.text('Speak the text first to download its audio.'), findsOneWidget);
+
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+    expect(_downloadButton(tester).onPressed, isNotNull);
+
+    await tester.tap(find.text('Download'));
+    await tester.pumpAndSettle();
+    expect(saver.savedWav, isNotNull);
+    expect(find.text('Audio saved.'), findsOneWidget);
+  });
+
+  testWidgets('editing the text disables Download again', (WidgetTester tester) async {
+    await _pumpApp(tester);
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'ကခ');
+    await tester.pump();
+
+    expect(_downloadButton(tester).onPressed, isNull);
+  });
+
+  testWidgets('Download is hidden for Android engines', (WidgetTester tester) async {
+    final FakeTtsService system = FakeTtsService(
+      engines: <String>[_BURMESE_ENGINE],
+      burmeseEngines: <String>{_BURMESE_ENGINE},
+    );
+    await _pumpApp(tester, system: system);
+
+    await tester.tap(find.text(_ON_DEVICE_LABEL));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(_BURMESE_ENGINE).last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Download'), findsNothing);
   });
 }

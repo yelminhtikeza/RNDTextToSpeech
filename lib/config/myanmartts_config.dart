@@ -27,4 +27,10 @@ abstract final class MyanmarTtsConfig {
 
   /// ONNX Runtime CPU thread — ဖုန်း၏ big core အရေအတွက်ခန့်။
   static const int INTRA_OP_THREADS = 4;
+
+  /// Download လုပ်သော ဖိုင်အမည် — `<prefix><yyyyMMdd_HHmmss>.wav`။
+  static const String DOWNLOAD_FILE_PREFIX = 'myanmartts_';
+  static const String DOWNLOAD_FILE_EXTENSION = '.wav';
+  static const String DOWNLOAD_TIMESTAMP_PATTERN = 'yyyyMMdd_HHmmss';
+  static const String WAV_MIME_TYPE = 'audio/wav';
 }

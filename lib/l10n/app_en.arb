@@ -26,5 +26,9 @@
   "statusLoadingModel": "Loading the on-device Burmese voice… The first launch can take a while.",
   "errorNoSpeakableText": "No Burmese Unicode text to read. Zawgyi and non-Burmese text are not supported.",
   "errorModelLoadFailed": "Could not load the on-device Burmese voice. Choose another engine or try again.",
-  "pitchNotSupported": "Pitch is not adjustable with MyanmarTTS."
+  "pitchNotSupported": "Pitch is not adjustable with MyanmarTTS.",
+  "downloadButton": "Download",
+  "downloadSaved": "Audio saved.",
+  "downloadFailed": "Could not save the audio.",
+  "downloadHint": "Speak the text first to download its audio."
 }

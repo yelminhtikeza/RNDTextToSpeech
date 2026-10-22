@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 
+import '../config/myanmartts_config.dart';
 import 'audio_output.dart';
 
 /// [AudioOutput] ကို audioplayers ဖြင့် အကောင်အထည်ဖော်ထားခြင်း။
@@ -12,7 +13,6 @@ class AudioplayersAudioOutput implements AudioOutput {
   AudioplayersAudioOutput({required AudioPlayer player}) : _player = player;
 
   static const String _LOG_NAME = 'myanmartts.audio';
-  static const String _WAV_MIME_TYPE = 'audio/wav';
 
   final AudioPlayer _player;
   Completer<void>? _playback;
@@ -25,7 +25,7 @@ class AudioplayersAudioOutput implements AudioOutput {
       if (!playback.isCompleted) playback.complete();
     });
     try {
-      await _player.play(BytesSource(wav, mimeType: _WAV_MIME_TYPE));
+      await _player.play(BytesSource(wav, mimeType: MyanmarTtsConfig.WAV_MIME_TYPE));
       await playback.future;
     } on PlatformException catch (error, stackTrace) {
       developer.log('action=play result=failed code=${error.code}', name: _LOG_NAME, error: error, stackTrace: stackTrace);

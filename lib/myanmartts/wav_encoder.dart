@@ -37,6 +37,20 @@ class WavEncoder {
     return bytes.buffer.asUint8List();
   }
 
+  /// [encodePcm16] ဖြင့် ထုတ်ထားသော WAV များကို အစဉ်လိုက် ပေါင်းသည် — ဝါကျအလိုက် ထုတ်ထားသော အသံကို
+  /// download အတွက် ဖိုင်တစ်ဖိုင်တည်း ဖြစ်စေရန်။ Header ကို ပြန်ရေးပြီး data အပိုင်းများကိုသာ ကူးသည်။
+  Uint8List concatenatePcm16({required List<Uint8List> wavs, required int sampleRate}) {
+    final int dataBytes = wavs.fold<int>(0, (int sum, Uint8List wav) => sum + wav.length - _HEADER_BYTES);
+    final Uint8List combined =
+        encodePcm16(samples: Float32List(dataBytes ~/ _BYTES_PER_SAMPLE), sampleRate: sampleRate);
+    int offset = _HEADER_BYTES;
+    for (final Uint8List wav in wavs) {
+      combined.setRange(offset, offset + wav.length - _HEADER_BYTES, wav, _HEADER_BYTES);
+      offset += wav.length - _HEADER_BYTES;
+    }
+    return combined;
+  }
+
   static void _writeAscii({required ByteData bytes, required int offset, required String text}) {
     for (int index = 0; index < text.length; index++) {
       bytes.setUint8(offset + index, text.codeUnitAt(index));
