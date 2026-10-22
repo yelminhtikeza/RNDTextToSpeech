@@ -21,8 +21,8 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+    # Team standard သည် constant များကို SCREAMING_SNAKE_CASE ဖြင့် ရေးရန် သတ်မှတ်ထားသည်။
+    constant_identifier_names: false
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
