@@ -9,6 +9,7 @@ import '../models/audio_save_result.dart';
 import '../models/burmese_speech_state.dart';
 import '../providers/burmese_speech_controller.dart';
 import '../widgets/app_button.dart';
+import '../widgets/waveform_view.dart';
 
 class BurmeseSpeechScreen extends ConsumerStatefulWidget {
   const BurmeseSpeechScreen({super.key});
@@ -88,6 +89,14 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
                 ),
               ],
             ),
+            if (!speechState.waveform.isEmpty) ...<Widget>[
+              const SizedBox(height: AppTheme.SPACING),
+              WaveformView(peaks: speechState.waveform.peaks),
+              Text(
+                l10n.generatedAudioDuration(_formatSeconds(duration: speechState.waveform.duration)),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (speechState.supportsDownload) ...<Widget>[
               const SizedBox(height: AppTheme.SPACING),
               AppButton(
@@ -149,6 +158,9 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
       ),
     );
   }
+
+  static String _formatSeconds({required Duration duration}) =>
+      (duration.inMilliseconds / Duration.millisecondsPerSecond).toStringAsFixed(1);
 
   Future<void> _downloadAudio({
     required BurmeseSpeechController controller,

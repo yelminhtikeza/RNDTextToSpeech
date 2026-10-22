@@ -15,6 +15,7 @@ import '../myanmartts/myanmar_tts_models.dart';
 import '../myanmartts/myanmar_tts_speaker.dart';
 import '../myanmartts/onnx_myanmar_tts_models.dart';
 import '../myanmartts/synthesis_settings.dart';
+import '../myanmartts/waveform_summary.dart';
 import '../services/audio_file_saver.dart';
 import '../services/audio_output.dart';
 import '../services/audioplayers_audio_output.dart';
@@ -141,7 +142,7 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
   void discardGeneratedAudio() {
     if (_downloadableAudio == null && !state.hasDownloadableAudio) return;
     _downloadableAudio = null;
-    state = state.copyWith(hasDownloadableAudio: false);
+    state = state.copyWith(hasDownloadableAudio: false, waveform: WaveformSummary.empty);
   }
 
   /// နောက်ဆုံးဖတ်ခဲ့သော အသံကို WAV ဖိုင်အဖြစ် သိမ်းသည်။
@@ -238,7 +239,7 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
   Future<void> _speakOnDevice({required String text}) async {
     try {
       // Slider ၏ speech rate (0.5 = ပုံမှန်) ကို duration multiplier အဖြစ် ပြောင်းသည် — rate မြင့်လေ အသံတိုလေ။
-      final Uint8List? audio = await _onDevice.speak(
+      final SpokenAudio? audio = await _onDevice.speak(
         text: text,
         settings: SynthesisSettings(
           lengthScale: TtsConfig.SPEECH_RATE_DEFAULT / state.speechRate,
@@ -249,8 +250,12 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
       if (!ref.mounted) return;
       developer.log('action=speak engine=${TtsConfig.ON_DEVICE_ENGINE_ID} length=${text.length} '
           'result=${audio == null ? 'stopped' : 'ok'}', name: _LOG_NAME);
-      _downloadableAudio = audio;
-      state = state.copyWith(status: SpeechStatus.ready, hasDownloadableAudio: audio != null);
+      _downloadableAudio = audio?.wav;
+      state = state.copyWith(
+        status: SpeechStatus.ready,
+        hasDownloadableAudio: audio != null,
+        waveform: audio?.waveform ?? WaveformSummary.empty,
+      );
     } on MyanmarTtsException catch (error) {
       _reportSpeakFailure(platformMessage: error.platformMessage);
     } on AudioOutputException catch (error) {

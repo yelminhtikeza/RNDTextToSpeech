@@ -281,6 +281,8 @@ void main() {
 
       await _controllerOf(container).speak(text: _BURMESE_TEXT);
       expect(_stateOf(container).canDownload, isTrue);
+      expect(_stateOf(container).waveform.peaks, hasLength(MyanmarTtsConfig.WAVEFORM_BAR_COUNT));
+      expect(_stateOf(container).waveform.duration, const Duration(milliseconds: 500));
 
       final AudioSaveResult result = await _controllerOf(container).downloadAudio();
       expect(result.status, AudioSaveStatus.saved);
@@ -299,6 +301,7 @@ void main() {
       await speaking;
 
       expect(_stateOf(container).hasDownloadableAudio, isFalse);
+      expect(_stateOf(container).waveform.isEmpty, isTrue);
     });
 
     test('editing the text or switching engine discards the audio', () async {
@@ -306,6 +309,7 @@ void main() {
       await _controllerOf(container).speak(text: _BURMESE_TEXT);
       _controllerOf(container).discardGeneratedAudio();
       expect(_stateOf(container).hasDownloadableAudio, isFalse);
+      expect(_stateOf(container).waveform.isEmpty, isTrue);
 
       await _controllerOf(container).speak(text: _BURMESE_TEXT);
       await _controllerOf(container).selectEngine(engineName: _BURMESE_ENGINE);

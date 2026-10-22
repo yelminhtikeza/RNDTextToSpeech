@@ -1,5 +1,6 @@
 import '../config/myanmartts_config.dart';
 import '../config/tts_config.dart';
+import '../myanmartts/waveform_summary.dart';
 
 enum SpeechStatus {
   /// Android TTS engine တစ်ခုချင်းစီကို မြန်မာဘာသာ ပံ့ပိုးမှု စစ်နေဆဲ။
@@ -43,6 +44,7 @@ class BurmeseSpeechState {
     this.cfgStrength = MyanmarTtsConfig.CFG_STRENGTH_DEFAULT,
     this.maxInputLength = TtsConfig.MAX_INPUT_LENGTH_FALLBACK,
     this.hasDownloadableAudio = false,
+    this.waveform = WaveformSummary.empty,
     this.isSavingAudio = false,
     this.error,
     this.platformMessage,
@@ -65,6 +67,9 @@ class BurmeseSpeechState {
 
   /// နောက်ဆုံး အဆုံးထိ ဖတ်ခဲ့သော MyanmarTTS အသံ ရှိ/မရှိ — စာပြင်လျှင်၊ engine ပြောင်းလျှင် ရှင်းသည်။
   final bool hasDownloadableAudio;
+
+  /// ထုတ်ထားသော (download လုပ်မည့်) အသံ၏ waveform — [hasDownloadableAudio] နှင့် အတူ ရှင်းသည်။
+  final WaveformSummary waveform;
   final bool isSavingAudio;
   final SpeechError? error;
 
@@ -101,6 +106,7 @@ class BurmeseSpeechState {
     double? cfgStrength,
     int? maxInputLength,
     bool? hasDownloadableAudio,
+    WaveformSummary? waveform,
     bool? isSavingAudio,
   }) {
     // error/platformMessage ကို copy မလုပ်ခြင်းမှာ လုပ်ဆောင်ချက်အသစ်တိုင်း ယခင်အမှားကို ရှင်းရန် ဖြစ်သည်။
@@ -114,6 +120,7 @@ class BurmeseSpeechState {
       cfgStrength: cfgStrength ?? this.cfgStrength,
       maxInputLength: maxInputLength ?? this.maxInputLength,
       hasDownloadableAudio: hasDownloadableAudio ?? this.hasDownloadableAudio,
+      waveform: waveform ?? this.waveform,
       isSavingAudio: isSavingAudio ?? this.isSavingAudio,
     );
   }
@@ -133,6 +140,7 @@ class BurmeseSpeechState {
       cfgStrength: cfgStrength,
       maxInputLength: maxInputLength,
       hasDownloadableAudio: hasDownloadableAudio,
+      waveform: waveform,
       isSavingAudio: isSavingAudio,
       error: error,
       platformMessage: platformMessage,

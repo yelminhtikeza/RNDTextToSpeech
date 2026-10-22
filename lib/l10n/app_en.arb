@@ -34,5 +34,13 @@
   "flowStepsLabel": "Steps",
   "flowStepsHint": "More steps sound clearer but take longer to generate (time grows with the step count).",
   "cfgLabel": "CFG",
-  "cfgHint": "How strictly the voice follows the text. 1 can drift or mumble, about 3 is balanced, and 4–5 is sharper but can sound strained."
+  "cfgHint": "How strictly the voice follows the text. 1 can drift or mumble, about 3 is balanced, and 4–5 is sharper but can sound strained.",
+  "generatedAudioDuration": "Generated audio · {seconds} s",
+  "@generatedAudioDuration": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  }
 }

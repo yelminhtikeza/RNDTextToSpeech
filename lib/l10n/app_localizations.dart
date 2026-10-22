@@ -265,6 +265,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'How strictly the voice follows the text. 1 can drift or mumble, about 3 is balanced, and 4–5 is sharper but can sound strained.'**
   String get cfgHint;
+
+  /// No description provided for @generatedAudioDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Generated audio · {seconds} s'**
+  String generatedAudioDuration(String seconds);
 }
 
 class _AppLocalizationsDelegate

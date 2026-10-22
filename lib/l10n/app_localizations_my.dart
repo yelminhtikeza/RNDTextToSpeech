@@ -101,4 +101,9 @@ class AppLocalizationsMy extends AppLocalizations {
   @override
   String get cfgHint =>
       'အသံသည် စာကို မည်မျှ တင်းကျပ်စွာ လိုက်မည်နည်း။ 1 တွင် လွင့်/ဝါးနိုင်၊ ~3 မျှတ၊ 4–5 ပိုပြတ်သားသော်လည်း တင်းမာနိုင်။';
+
+  @override
+  String generatedAudioDuration(String seconds) {
+    return 'ထုတ်ထားသော အသံ · $seconds စက္ကန့်';
+  }
 }

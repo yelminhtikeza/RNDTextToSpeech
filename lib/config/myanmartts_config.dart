@@ -41,4 +41,7 @@ abstract final class MyanmarTtsConfig {
   static const String DOWNLOAD_FILE_EXTENSION = '.wav';
   static const String DOWNLOAD_TIMESTAMP_PATTERN = 'yyyyMMdd_HHmmss';
   static const String WAV_MIME_TYPE = 'audio/wav';
+
+  /// Waveform တွင် ဆွဲမည့် bar အရေအတွက် — ဖုန်းအကျယ်တွင် bar တစ်ခု ~3 px ခန့်ဖြစ်စေရန်။
+  static const int WAVEFORM_BAR_COUNT = 120;
 }

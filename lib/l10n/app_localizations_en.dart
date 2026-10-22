@@ -99,4 +99,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cfgHint =>
       'How strictly the voice follows the text. 1 can drift or mumble, about 3 is balanced, and 4–5 is sharper but can sound strained.';
+
+  @override
+  String generatedAudioDuration(String seconds) {
+    return 'Generated audio · $seconds s';
+  }
 }

@@ -7,6 +7,7 @@ import 'package:rnd_text_to_speech/config/myanmartts_config.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_speaker.dart';
 import 'package:rnd_text_to_speech/myanmartts/synthesis_settings.dart';
+import 'package:rnd_text_to_speech/myanmartts/waveform_summary.dart';
 import 'package:rnd_text_to_speech/services/audio_output.dart';
 
 const int _BINS = MyanmarTtsConfig.FFT_SIZE ~/ 2 + 1;
@@ -108,7 +109,7 @@ void main() {
   });
 
   test('synthesizes one chunk into a playable 44.1 kHz WAV', () async {
-    final Uint8List? downloadable = await speaker.speak(text: 'ကခ', settings: const SynthesisSettings(lengthScale: 1.0));
+    final SpokenAudio? spoken = await speaker.speak(text: 'ကခ', settings: const SynthesisSettings(lengthScale: 1.0));
 
     // "ကခ" -> blank,က,blank,ခ,blank = 5 tokens × 2 frames
     expect(models.encodedTokenCounts, <int>[5]);
@@ -119,7 +120,10 @@ void main() {
     expect(header.getUint32(24, Endian.little), MyanmarTtsConfig.SAMPLE_RATE);
     // ISTFT output = frames × hop samples
     expect(audio.played.single.length, _WAV_HEADER_BYTES + 10 * MyanmarTtsConfig.HOP_LENGTH * _BYTES_PER_SAMPLE);
-    expect(downloadable, audio.played.single);
+    expect(spoken!.wav, audio.played.single);
+    // 10 frames × 512 hop = 5120 samples
+    expect(spoken.waveform.duration, Duration(microseconds: 5120 * 1000000 ~/ MyanmarTtsConfig.SAMPLE_RATE));
+    expect(spoken.waveform.peaks, hasLength(MyanmarTtsConfig.WAVEFORM_BAR_COUNT));
   });
 
   test('forwards steps and CFG to the model for every chunk', () async {
@@ -141,13 +145,13 @@ void main() {
   });
 
   test('plays each sentence in order and skips chunks with nothing to say', () async {
-    final Uint8List? downloadable = await speaker.speak(text: 'က။ hello။ ခဂ။', settings: const SynthesisSettings(lengthScale: 1.0));
+    final SpokenAudio? spoken = await speaker.speak(text: 'က။ hello။ ခဂ။', settings: const SynthesisSettings(lengthScale: 1.0));
 
     expect(models.encodedTokenCounts, <int>[5, 7]);
     expect(audio.played, hasLength(2));
     // Download ဖိုင်သည် ဖွင့်ခဲ့သော အပိုင်းအားလုံးကို ပေါင်းထားသည်
     final int playedData = audio.played.fold<int>(0, (int sum, Uint8List wav) => sum + wav.length - _WAV_HEADER_BYTES);
-    expect(downloadable!.length, _WAV_HEADER_BYTES + playedData);
+    expect(spoken!.wav.length, _WAV_HEADER_BYTES + playedData);
   });
 
   test('synthesizes the next sentence while the current one plays', () async {
@@ -178,7 +182,7 @@ void main() {
 
   test('stop during playback does not start the next sentence', () async {
     audio.holdPlayback = Completer<void>();
-    final Future<Uint8List?> speaking = speaker.speak(text: 'က။ ခ။ ဂ။', settings: const SynthesisSettings(lengthScale: 1.0));
+    final Future<SpokenAudio?> speaking = speaker.speak(text: 'က။ ခ။ ဂ။', settings: const SynthesisSettings(lengthScale: 1.0));
     await _waitUntil(() => audio.played.isNotEmpty);
 
     await speaker.stop();

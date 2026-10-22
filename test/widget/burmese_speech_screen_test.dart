@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rnd_text_to_speech/main.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/providers/burmese_speech_controller.dart';
+import 'package:rnd_text_to_speech/widgets/waveform_view.dart';
 
 import '../support/fake_audio_file_saver.dart';
 import '../support/fake_on_device_speaker.dart';
@@ -161,5 +162,20 @@ void main() {
 
     expect(find.text('Steps'), findsNothing);
     expect(find.text('CFG'), findsNothing);
+  });
+
+  testWidgets('shows the waveform and duration of generated audio until the text changes',
+      (WidgetTester tester) async {
+    await _pumpApp(tester);
+    expect(find.byType(WaveformView), findsNothing);
+
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+    expect(find.byType(WaveformView), findsOneWidget);
+    expect(find.text('Generated audio · 0.5 s'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'ကခ');
+    await tester.pump();
+    expect(find.byType(WaveformView), findsNothing);
   });
 }

@@ -8,6 +8,7 @@ abstract final class AppTheme {
   static const double LOADER_SIZE = 18;
   static const double LOADER_STROKE = 2;
   static const double SLIDER_VALUE_WIDTH = 40;
+  static const double WAVEFORM_HEIGHT = 64;
 
   static ThemeData light() => ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: SEED_COLOR),

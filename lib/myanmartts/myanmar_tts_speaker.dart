@@ -11,6 +11,7 @@ import 'inverse_stft.dart';
 import 'length_regulator.dart';
 import 'myanmar_tts_models.dart';
 import 'synthesis_settings.dart';
+import 'waveform_summary.dart';
 import 'text_chunker.dart';
 import 'wav_encoder.dart';
 
@@ -23,9 +24,9 @@ abstract interface class OnDeviceSpeaker {
   bool hasSpeakableText({required String text});
 
   /// ဖတ်ပြီးဆုံးသည် သို့မဟုတ် [stop] ခေါ်သည်အထိ စောင့်သည်။
-  /// အဆုံးထိ ဖတ်ပြီးပါက ကြားခဲ့သော အသံအားလုံးကို WAV တစ်ဖိုင်အဖြစ် ပြန်ပေးသည် (download အတွက်)၊
+  /// အဆုံးထိ ဖတ်ပြီးပါက ကြားခဲ့သော အသံအားလုံးကို WAV တစ်ဖိုင်နှင့် waveform အဖြစ် ပြန်ပေးသည် (download/ပြသရန်)၊
   /// ရပ်လိုက်ပါက အပိုင်းလိုက်သာ ရှိ၍ null ပြန်ပေးသည်။
-  Future<Uint8List?> speak({required String text, required SynthesisSettings settings});
+  Future<SpokenAudio?> speak({required String text, required SynthesisSettings settings});
 
   Future<void> stop();
 
@@ -66,7 +67,7 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
   bool hasSpeakableText({required String text}) => _TOKENIZER.hasSpeakableText(text: text);
 
   @override
-  Future<Uint8List?> speak({required String text, required SynthesisSettings settings}) async {
+  Future<SpokenAudio?> speak({required String text, required SynthesisSettings settings}) async {
     await load();
     _isStopRequested = false;
     final List<String> chunks =
@@ -87,7 +88,11 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
         if (_isStopRequested) return null;
         played.add(wav);
       }
-      return _WAV_ENCODER.concatenatePcm16(wavs: played, sampleRate: MyanmarTtsConfig.SAMPLE_RATE);
+      final Uint8List wav = _WAV_ENCODER.concatenatePcm16(wavs: played, sampleRate: MyanmarTtsConfig.SAMPLE_RATE);
+      return SpokenAudio(
+        wav: wav,
+        waveform: await summarizeWaveformInIsolate(wav: wav, barCount: MyanmarTtsConfig.WAVEFORM_BAR_COUNT),
+      );
     } on SynthesisCancelledException {
       return null;
     } finally {
