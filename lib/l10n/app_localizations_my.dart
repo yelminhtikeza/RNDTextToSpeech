@@ -44,10 +44,7 @@ class AppLocalizationsMy extends AppLocalizations {
 
   @override
   String get statusNoBurmeseEngine =>
-      'ထည့်သွင်းထားသော Engine များထဲတွင် မြန်မာဘာသာ (my-MM) ကို ပံ့ပိုးသည့် Engine မရှိပါ။ မြန်မာ TTS Engine တစ်ခုကို ထည့်သွင်းပြီး Android Settings › Text-to-speech output တွင် သတ်မှတ်ကာ ပြန်စစ်ပါ။';
-
-  @override
-  String get statusDetectionFailed => 'ဤစက်၏ အသံ Engine များကို ဖတ်၍ မရပါ။';
+      'ဤ Engine သည် မြန်မာဘာသာ (my-MM) ကို မပံ့ပိုးပါ။ အခြား Engine ကို ရွေးပါ သို့မဟုတ် မြန်မာ TTS Engine ထည့်သွင်းပြီး ပြန်စစ်ပါ။';
 
   @override
   String get errorEmptyText => 'မြန်မာစာ အရင်ထည့်ပါ။';
@@ -59,4 +56,23 @@ class AppLocalizationsMy extends AppLocalizations {
 
   @override
   String get errorSpeakFailed => 'Engine သည် ဤစာသားကို ဖတ်၍ မရပါ။';
+
+  @override
+  String get engineOnDevice => 'MyanmarTTS (ဖုန်းပေါ်တွင်)';
+
+  @override
+  String get statusLoadingModel =>
+      'ဖုန်းပေါ် မြန်မာအသံကို ဖွင့်နေသည်… ပထမဆုံးအကြိမ်တွင် အချိန်အနည်းငယ် ကြာနိုင်သည်။';
+
+  @override
+  String get errorNoSpeakableText =>
+      'ဖတ်စရာ မြန်မာ ယူနီကုဒ်စာ မရှိပါ။ ဇော်ဂျီနှင့် မြန်မာမဟုတ်သော စာကို မဖတ်နိုင်ပါ။';
+
+  @override
+  String get errorModelLoadFailed =>
+      'ဖုန်းပေါ် မြန်မာအသံကို ဖွင့်၍ မရပါ။ အခြား Engine ကို ရွေးပါ သို့မဟုတ် ပြန်ကြိုးစားပါ။';
+
+  @override
+  String get pitchNotSupported =>
+      'MyanmarTTS တွင် အသံအနိမ့်အမြင့်ကို ချိန်၍ မရပါ။';
 }

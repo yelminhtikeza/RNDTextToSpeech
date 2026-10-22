@@ -167,14 +167,8 @@ abstract class AppLocalizations {
   /// No description provided for @statusNoBurmeseEngine.
   ///
   /// In en, this message translates to:
-  /// **'No installed speech engine supports Burmese (my-MM). Install a Burmese TTS engine on this device, set it up in Android Settings › Text-to-speech output, then check again.'**
+  /// **'This speech engine does not support Burmese (my-MM). Choose another engine, or install a Burmese TTS engine and check again.'**
   String get statusNoBurmeseEngine;
-
-  /// No description provided for @statusDetectionFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not read this device\'s speech engines.'**
-  String get statusDetectionFailed;
 
   /// No description provided for @errorEmptyText.
   ///
@@ -193,6 +187,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The speech engine could not speak this text.'**
   String get errorSpeakFailed;
+
+  /// No description provided for @engineOnDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'MyanmarTTS (on-device)'**
+  String get engineOnDevice;
+
+  /// No description provided for @statusLoadingModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading the on-device Burmese voice… The first launch can take a while.'**
+  String get statusLoadingModel;
+
+  /// No description provided for @errorNoSpeakableText.
+  ///
+  /// In en, this message translates to:
+  /// **'No Burmese Unicode text to read. Zawgyi and non-Burmese text are not supported.'**
+  String get errorNoSpeakableText;
+
+  /// No description provided for @errorModelLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the on-device Burmese voice. Choose another engine or try again.'**
+  String get errorModelLoadFailed;
+
+  /// No description provided for @pitchNotSupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Pitch is not adjustable with MyanmarTTS.'**
+  String get pitchNotSupported;
 }
 
 class _AppLocalizationsDelegate

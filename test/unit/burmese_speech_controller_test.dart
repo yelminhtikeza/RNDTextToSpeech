@@ -4,18 +4,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rnd_text_to_speech/config/tts_config.dart';
 import 'package:rnd_text_to_speech/models/burmese_speech_state.dart';
+import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/providers/burmese_speech_controller.dart';
 
+import '../support/fake_on_device_speaker.dart';
 import '../support/fake_tts_service.dart';
 
 const String _GOOGLE = 'com.google.android.tts';
 const String _BURMESE_ENGINE = 'com.example.burmese.tts';
 const String _BURMESE_TEXT = 'မင်္ဂလာပါ';
+const String _ON_DEVICE = TtsConfig.ON_DEVICE_ENGINE_ID;
 
 /// Controller ကို ဖန်တီးပြီး build() မှ စတင်သော engine ရှာဖွေမှု ပြီးသည်အထိ စောင့်သည်။
-Future<ProviderContainer> _createDetectedContainer({required FakeTtsService fake}) async {
+Future<ProviderContainer> _createDetectedContainer({
+  FakeTtsService? system,
+  FakeOnDeviceSpeaker? onDevice,
+}) async {
   final ProviderContainer container = ProviderContainer(
-    overrides: [ttsServiceProvider.overrideWithValue(fake)],
+    overrides: [
+      ttsServiceProvider.overrideWithValue(system ?? FakeTtsService()),
+      onDeviceSpeakerProvider.overrideWithValue(onDevice ?? FakeOnDeviceSpeaker()),
+    ],
   );
   addTearDown(container.dispose);
   container.read(burmeseSpeechControllerProvider);
@@ -29,124 +38,125 @@ BurmeseSpeechState _stateOf(ProviderContainer container) =>
 BurmeseSpeechController _controllerOf(ProviderContainer container) =>
     container.read(burmeseSpeechControllerProvider.notifier);
 
+FakeTtsService _systemWithBurmese() => FakeTtsService(
+      engines: <String>[_GOOGLE, _BURMESE_ENGINE],
+      burmeseEngines: <String>{_BURMESE_ENGINE},
+    );
+
 void main() {
   group('detectBurmeseEngines', () {
-    test('selects the Burmese-capable engine even when it is not first', () async {
-      final FakeTtsService fake = FakeTtsService(
-        engines: <String>[_GOOGLE, _BURMESE_ENGINE],
-        burmeseEngines: <String>{_BURMESE_ENGINE},
-      );
-      final ProviderContainer container = await _createDetectedContainer(fake: fake);
-
-      expect(_stateOf(container).status, SpeechStatus.ready);
-      expect(_stateOf(container).burmeseEngines, <String>[_BURMESE_ENGINE]);
-      expect(_stateOf(container).selectedEngine, _BURMESE_ENGINE);
-      expect(fake.activeEngine, _BURMESE_ENGINE);
-    });
-
-    test('reports noBurmeseEngine when no engine supports my-MM', () async {
-      final FakeTtsService fake = FakeTtsService(engines: <String>[_GOOGLE]);
-      final ProviderContainer container = await _createDetectedContainer(fake: fake);
-
-      expect(_stateOf(container).status, SpeechStatus.noBurmeseEngine);
-      expect(_stateOf(container).canSpeak, isFalse);
-    });
-
-    test('reports noBurmeseEngine when the device has no engines', () async {
+    test('lists the on-device engine first, then Burmese-capable Android engines', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
       final ProviderContainer container =
-          await _createDetectedContainer(fake: FakeTtsService());
+          await _createDetectedContainer(system: _systemWithBurmese(), onDevice: onDevice);
 
-      expect(_stateOf(container).status, SpeechStatus.noBurmeseEngine);
+      expect(_stateOf(container).engines, <String>[_ON_DEVICE, _BURMESE_ENGINE]);
+      expect(_stateOf(container).selectedEngine, _ON_DEVICE);
+      expect(_stateOf(container).status, SpeechStatus.ready);
+      expect(onDevice.loadCallCount, 1);
     });
 
-    test('reports detectionFailed with the platform message', () async {
-      final FakeTtsService fake = FakeTtsService(failingOperation: 'getEngines');
-      final ProviderContainer container = await _createDetectedContainer(fake: fake);
+    test('the on-device engine works when no Android engine supports Burmese', () async {
+      final ProviderContainer container =
+          await _createDetectedContainer(system: FakeTtsService(engines: <String>[_GOOGLE]));
 
-      expect(_stateOf(container).status, SpeechStatus.detectionFailed);
-      expect(_stateOf(container).platformMessage, 'getEngines failed');
+      expect(_stateOf(container).engines, <String>[_ON_DEVICE]);
+      expect(_stateOf(container).canSpeak, isTrue);
+    });
+
+    test('a failing Android engine scan is not fatal', () async {
+      final ProviderContainer container =
+          await _createDetectedContainer(system: FakeTtsService(failingOperation: 'getEngines'));
+
+      expect(_stateOf(container).engines, <String>[_ON_DEVICE]);
+      expect(_stateOf(container).status, SpeechStatus.ready);
+    });
+
+    test('model load failure keeps the engine list so the user can switch', () async {
+      final ProviderContainer container = await _createDetectedContainer(
+        system: _systemWithBurmese(),
+        onDevice: FakeOnDeviceSpeaker(
+          loadError: const MyanmarTtsException(operation: 'load', platformMessage: 'model missing'),
+        ),
+      );
+
+      expect(_stateOf(container).status, SpeechStatus.engineUnavailable);
+      expect(_stateOf(container).error, SpeechError.modelLoadFailed);
+      expect(_stateOf(container).platformMessage, 'model missing');
+      expect(_stateOf(container).canChooseEngine, isTrue);
+
+      await _controllerOf(container).selectEngine(engineName: _BURMESE_ENGINE);
+      expect(_stateOf(container).status, SpeechStatus.ready);
+      expect(_stateOf(container).error, isNull);
     });
   });
 
-  group('speak', () {
-    late FakeTtsService fake;
+  group('selectEngine (Android)', () {
+    test('an engine that rejects my-MM is reported as unavailable', () async {
+      final ProviderContainer container =
+          await _createDetectedContainer(system: FakeTtsService(engines: <String>[_GOOGLE]));
+
+      await _controllerOf(container).selectEngine(engineName: _GOOGLE);
+
+      expect(_stateOf(container).status, SpeechStatus.engineUnavailable);
+      expect(_stateOf(container).error, SpeechError.languageUnavailable);
+    });
+
+    test('pitch is only supported by Android engines', () async {
+      final ProviderContainer container = await _createDetectedContainer(system: _systemWithBurmese());
+      expect(_stateOf(container).supportsPitch, isFalse);
+
+      await _controllerOf(container).selectEngine(engineName: _BURMESE_ENGINE);
+      expect(_stateOf(container).supportsPitch, isTrue);
+    });
+  });
+
+  group('speak on-device', () {
+    late FakeOnDeviceSpeaker onDevice;
     late ProviderContainer container;
 
     setUp(() async {
-      fake = FakeTtsService(
-        engines: <String>[_BURMESE_ENGINE],
-        burmeseEngines: <String>{_BURMESE_ENGINE},
-        maxInputLength: 20,
-      );
-      container = await _createDetectedContainer(fake: fake);
+      onDevice = FakeOnDeviceSpeaker();
+      container = await _createDetectedContainer(onDevice: onDevice);
     });
 
-    test('speaks trimmed text with the chosen rate and pitch', () async {
-      _controllerOf(container).updateSpeechRate(rate: 0.8);
-      _controllerOf(container).updatePitch(pitch: 1.5);
-
+    test('speaks trimmed text at normal length scale by default', () async {
       await _controllerOf(container).speak(text: '  $_BURMESE_TEXT  ');
 
-      expect(fake.spokenText, _BURMESE_TEXT);
-      expect(fake.appliedRate, 0.8);
-      expect(fake.appliedPitch, 1.5);
+      expect(onDevice.spokenText, _BURMESE_TEXT);
+      expect(onDevice.lengthScale, 1.0);
       expect(_stateOf(container).status, SpeechStatus.ready);
-      expect(_stateOf(container).error, isNull);
+    });
+
+    test('a faster speech rate shortens the audio', () async {
+      _controllerOf(container).updateSpeechRate(rate: 1.0);
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+
+      expect(onDevice.lengthScale, 0.5);
+    });
+
+    test('rejects Zawgyi-only or non-Burmese text inline', () async {
+      await _controllerOf(container).speak(text: 'hello');
+
+      expect(_stateOf(container).error, SpeechError.noSpeakableText);
+      expect(onDevice.spokenText, isNull);
     });
 
     test('rejects blank text without calling the engine', () async {
       await _controllerOf(container).speak(text: '   ');
 
       expect(_stateOf(container).error, SpeechError.emptyText);
-      expect(fake.spokenText, isNull);
+      expect(onDevice.spokenText, isNull);
     });
 
-    test('rejects text longer than the engine limit', () async {
-      await _controllerOf(container).speak(text: 'က' * 21);
+    test('rejects text longer than the input limit', () async {
+      await _controllerOf(container).speak(text: 'က' * (TtsConfig.MAX_INPUT_LENGTH_FALLBACK + 1));
 
       expect(_stateOf(container).error, SpeechError.textTooLong);
-      expect(fake.spokenText, isNull);
     });
 
-    test('accepts text exactly at the engine limit', () async {
-      await _controllerOf(container).speak(text: 'က' * 20);
-
-      expect(_stateOf(container).error, isNull);
-      expect(fake.spokenText, 'က' * 20);
-    });
-
-    test('reports speakFailed with the platform message when the engine throws', () async {
-      final FakeTtsService failingFake = FakeTtsService(
-        engines: <String>[_BURMESE_ENGINE],
-        burmeseEngines: <String>{_BURMESE_ENGINE},
-        failingOperation: 'speak',
-      );
-      final ProviderContainer failingContainer =
-          await _createDetectedContainer(fake: failingFake);
-
-      await _controllerOf(failingContainer).speak(text: _BURMESE_TEXT);
-
-      expect(_stateOf(failingContainer).error, SpeechError.speakFailed);
-      expect(_stateOf(failingContainer).platformMessage, 'speak failed');
-      expect(_stateOf(failingContainer).status, SpeechStatus.ready);
-    });
-
-    test('reports speakFailed when the engine returns failure', () async {
-      final FakeTtsService rejectingFake = FakeTtsService(
-        engines: <String>[_BURMESE_ENGINE],
-        burmeseEngines: <String>{_BURMESE_ENGINE},
-        isSpeakSuccessful: false,
-      );
-      final ProviderContainer rejectingContainer =
-          await _createDetectedContainer(fake: rejectingFake);
-
-      await _controllerOf(rejectingContainer).speak(text: _BURMESE_TEXT);
-
-      expect(_stateOf(rejectingContainer).error, SpeechError.speakFailed);
-    });
-
-    test('user stop is not reported as a failure', () async {
-      fake.pendingSpeak = Completer<bool>();
+    test('stop ends speaking without an error', () async {
+      onDevice.pendingSpeak = Completer<void>();
       final Future<void> speaking = _controllerOf(container).speak(text: _BURMESE_TEXT);
       await pumpEventQueue();
       expect(_stateOf(container).status, SpeechStatus.speaking);
@@ -154,25 +164,85 @@ void main() {
       await _controllerOf(container).stop();
       await speaking;
 
-      expect(fake.stopCallCount, 1);
+      expect(onDevice.stopCallCount, 1);
       expect(_stateOf(container).status, SpeechStatus.ready);
       expect(_stateOf(container).error, isNull);
     });
 
-    test('a new action clears the previous error', () async {
-      await _controllerOf(container).speak(text: '');
-      expect(_stateOf(container).error, SpeechError.emptyText);
+    test('synthesis failure shows the platform message', () async {
+      final ProviderContainer failing = await _createDetectedContainer(
+        onDevice: FakeOnDeviceSpeaker(
+          speakError: const MyanmarTtsException(operation: 'generateSpectrum', platformMessage: 'out of memory'),
+        ),
+      );
 
-      await _controllerOf(container).speak(text: _BURMESE_TEXT);
-      expect(_stateOf(container).error, isNull);
+      await _controllerOf(failing).speak(text: _BURMESE_TEXT);
+
+      expect(_stateOf(failing).error, SpeechError.speakFailed);
+      expect(_stateOf(failing).platformMessage, 'out of memory');
+      expect(_stateOf(failing).status, SpeechStatus.ready);
     });
   });
 
-  test('defaults match TtsConfig', () {
-    const BurmeseSpeechState state = BurmeseSpeechState.initial();
+  group('speak with an Android engine', () {
+    late FakeTtsService system;
+    late ProviderContainer container;
 
-    expect(state.speechRate, TtsConfig.SPEECH_RATE_DEFAULT);
-    expect(state.pitch, TtsConfig.PITCH_DEFAULT);
-    expect(state.status, SpeechStatus.detecting);
+    setUp(() async {
+      system = FakeTtsService(
+        engines: <String>[_BURMESE_ENGINE],
+        burmeseEngines: <String>{_BURMESE_ENGINE},
+        maxInputLength: 20,
+      );
+      container = await _createDetectedContainer(system: system);
+      await _controllerOf(container).selectEngine(engineName: _BURMESE_ENGINE);
+    });
+
+    test('speaks with the chosen rate and pitch', () async {
+      _controllerOf(container).updateSpeechRate(rate: 0.8);
+      _controllerOf(container).updatePitch(pitch: 1.5);
+
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+
+      expect(system.spokenText, _BURMESE_TEXT);
+      expect(system.appliedRate, 0.8);
+      expect(system.appliedPitch, 1.5);
+      expect(_stateOf(container).status, SpeechStatus.ready);
+    });
+
+    test('uses the engine input limit', () async {
+      await _controllerOf(container).speak(text: 'က' * 21);
+      expect(_stateOf(container).error, SpeechError.textTooLong);
+
+      await _controllerOf(container).speak(text: 'က' * 20);
+      expect(_stateOf(container).error, isNull);
+    });
+
+    test('user stop is not reported as a failure', () async {
+      system.pendingSpeak = Completer<bool>();
+      final Future<void> speaking = _controllerOf(container).speak(text: _BURMESE_TEXT);
+      await pumpEventQueue();
+
+      await _controllerOf(container).stop();
+      await speaking;
+
+      expect(system.stopCallCount, 1);
+      expect(_stateOf(container).error, isNull);
+    });
+
+    test('engine failure reports speakFailed with the platform message', () async {
+      final FakeTtsService failingSystem = FakeTtsService(
+        engines: <String>[_BURMESE_ENGINE],
+        burmeseEngines: <String>{_BURMESE_ENGINE},
+        failingOperation: 'speak',
+      );
+      final ProviderContainer failing = await _createDetectedContainer(system: failingSystem);
+      await _controllerOf(failing).selectEngine(engineName: _BURMESE_ENGINE);
+
+      await _controllerOf(failing).speak(text: _BURMESE_TEXT);
+
+      expect(_stateOf(failing).error, SpeechError.speakFailed);
+      expect(_stateOf(failing).platformMessage, 'speak failed');
+    });
   });
 }

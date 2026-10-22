@@ -1,6 +1,6 @@
 # ADR 0001 — စက်ပေါ်ရှိ TTS engine ဖြင့် မြန်မာအသံ ထုတ်ခြင်း
 
-- **Status:** Accepted
+- **Status:** Accepted — ပုံသေ engine ကို ADR 0002 က ပြင်ဆင်ထားသည်
 - **Date:** 2026-10-22
 
 ## Context

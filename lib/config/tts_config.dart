@@ -20,6 +20,10 @@ abstract final class TtsConfig {
   /// Android `TextToSpeech.getMaxSpeechInputLength()` ၏ ပုံသေတန်ဖိုး ဖြစ်သည်။
   static const int MAX_INPUT_LENGTH_FALLBACK = 4000;
 
+  /// Engine စာရင်းတွင် ဖုန်းပေါ် MyanmarTTS ကို ကိုယ်စားပြုသည့် ID — Android package name နှင့် မတိုက်စေရန်
+  /// dot ပါသော်လည်း package မဟုတ်သည့် ပုံစံ ရွေးထားသည်။
+  static const String ON_DEVICE_ENGINE_ID = 'on-device.myanmartts';
+
   /// flutter_tts `speak` သည် အောင်မြင်ပါက 1 ပြန်ပေးသည်။
   static const int PLATFORM_SUCCESS = 1;
 }

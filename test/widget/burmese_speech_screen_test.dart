@@ -2,60 +2,90 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rnd_text_to_speech/main.dart';
+import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/providers/burmese_speech_controller.dart';
 
+import '../support/fake_on_device_speaker.dart';
 import '../support/fake_tts_service.dart';
 
 const String _BURMESE_ENGINE = 'com.example.burmese.tts';
+const String _ON_DEVICE_LABEL = 'MyanmarTTS (on-device)';
 
-Future<void> _pumpApp(WidgetTester tester, {required FakeTtsService fake}) async {
+Future<void> _pumpApp(
+  WidgetTester tester, {
+  FakeTtsService? system,
+  FakeOnDeviceSpeaker? onDevice,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [ttsServiceProvider.overrideWithValue(fake)],
+      overrides: [
+        ttsServiceProvider.overrideWithValue(system ?? FakeTtsService()),
+        onDeviceSpeakerProvider.overrideWithValue(onDevice ?? FakeOnDeviceSpeaker()),
+      ],
       child: const RndTextToSpeechApp(),
     ),
   );
   await tester.pumpAndSettle();
 }
 
-void main() {
-  testWidgets('speaks the sample Burmese text with the detected engine', (WidgetTester tester) async {
-    final FakeTtsService fake = FakeTtsService(
-      engines: <String>[_BURMESE_ENGINE],
-      burmeseEngines: <String>{_BURMESE_ENGINE},
-    );
-    await _pumpApp(tester, fake: fake);
+FilledButton _speakButton(WidgetTester tester) =>
+    tester.widget<FilledButton>(find.ancestor(of: find.text('Speak'), matching: find.byType(FilledButton)));
 
-    expect(find.text(_BURMESE_ENGINE), findsOneWidget);
+void main() {
+  testWidgets('speaks the sample text with the on-device engine by default', (WidgetTester tester) async {
+    final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+    await _pumpApp(tester, onDevice: onDevice);
+
+    expect(find.text(_ON_DEVICE_LABEL), findsOneWidget);
+    expect(find.text('Pitch is not adjustable with MyanmarTTS.'), findsOneWidget);
     await tester.tap(find.text('Speak'));
     await tester.pumpAndSettle();
 
-    expect(fake.spokenText, isNotEmpty);
+    expect(onDevice.spokenText, isNotEmpty);
   });
 
-  testWidgets('shows install guidance and disables Speak when no engine supports Burmese',
-      (WidgetTester tester) async {
-    await _pumpApp(tester, fake: FakeTtsService(engines: <String>['com.google.android.tts']));
-
-    expect(find.textContaining('my-MM'), findsOneWidget);
-    expect(find.text('Check engines again'), findsOneWidget);
-    final FilledButton speakButton =
-        tester.widget<FilledButton>(find.ancestor(of: find.text('Speak'), matching: find.byType(FilledButton)));
-    expect(speakButton.onPressed, isNull);
-  });
-
-  testWidgets('shows empty-text validation inline under the input', (WidgetTester tester) async {
-    final FakeTtsService fake = FakeTtsService(
+  testWidgets('can switch to an installed Android engine', (WidgetTester tester) async {
+    final FakeTtsService system = FakeTtsService(
       engines: <String>[_BURMESE_ENGINE],
       burmeseEngines: <String>{_BURMESE_ENGINE},
     );
-    await _pumpApp(tester, fake: fake);
+    await _pumpApp(tester, system: system);
+
+    await tester.tap(find.text(_ON_DEVICE_LABEL));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(_BURMESE_ENGINE).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+
+    expect(system.spokenText, isNotEmpty);
+    expect(find.text('Pitch is not adjustable with MyanmarTTS.'), findsNothing);
+  });
+
+  testWidgets('shows the model load error and disables Speak', (WidgetTester tester) async {
+    await _pumpApp(
+      tester,
+      onDevice: FakeOnDeviceSpeaker(loadError: const MyanmarTtsException(operation: 'load')),
+    );
+
+    expect(find.textContaining('Could not load the on-device Burmese voice'), findsOneWidget);
+    expect(find.text('Check engines again'), findsOneWidget);
+    expect(_speakButton(tester).onPressed, isNull);
+  });
+
+  testWidgets('shows validation errors inline under the input', (WidgetTester tester) async {
+    final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+    await _pumpApp(tester, onDevice: onDevice);
 
     await tester.enterText(find.byType(TextField), '');
     await tester.tap(find.text('Speak'));
     await tester.pumpAndSettle();
-
     expect(find.text('Enter some Burmese text first.'), findsOneWidget);
-    expect(fake.spokenText, isNull);
+
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No Burmese Unicode text'), findsOneWidget);
+    expect(onDevice.spokenText, isNull);
   });
 }
