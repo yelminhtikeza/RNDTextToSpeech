@@ -84,7 +84,7 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
                     label: l10n.stopButton,
                     icon: Icons.stop,
                     variant: AppButtonVariant.outlined,
-                    onPressed: speechState.isSpeaking ? controller.stop : null,
+                    onPressed: speechState.isPlayingAudio ? controller.stop : null,
                   ),
                 ),
               ],
@@ -92,9 +92,22 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
             if (!speechState.waveform.isEmpty) ...<Widget>[
               const SizedBox(height: AppTheme.SPACING),
               WaveformView(peaks: speechState.waveform.peaks),
-              Text(
-                l10n.generatedAudioDuration(_formatSeconds(duration: speechState.waveform.duration)),
-                style: Theme.of(context).textTheme.bodySmall,
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      l10n.generatedAudioDuration(_formatSeconds(duration: speechState.waveform.duration)),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  AppButton(
+                    label: l10n.playButton,
+                    icon: Icons.play_arrow,
+                    variant: AppButtonVariant.outlined,
+                    isLoading: speechState.isReplaying,
+                    onPressed: speechState.canReplay ? controller.replayGeneratedAudio : null,
+                  ),
+                ],
               ),
             ],
             if (speechState.supportsDownload) ...<Widget>[
@@ -135,7 +148,7 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
                 max: MyanmarTtsConfig.FLOW_STEPS_MAX.toDouble(),
                 divisions: MyanmarTtsConfig.FLOW_STEPS_SLIDER_DIVISIONS,
                 valueLabel: speechState.flowSteps.toString(),
-                onChanged: speechState.isSpeaking
+                onChanged: speechState.isPlayingAudio
                     ? null
                     : (double steps) => controller.updateFlowSteps(steps: steps.round()),
               ),
@@ -147,7 +160,7 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
                 max: MyanmarTtsConfig.CFG_STRENGTH_MAX,
                 divisions: MyanmarTtsConfig.CFG_SLIDER_DIVISIONS,
                 valueLabel: speechState.cfgStrength.toStringAsFixed(1),
-                onChanged: speechState.isSpeaking
+                onChanged: speechState.isPlayingAudio
                     ? null
                     : (double cfgStrength) => controller.updateCfgStrength(cfgStrength: cfgStrength),
               ),

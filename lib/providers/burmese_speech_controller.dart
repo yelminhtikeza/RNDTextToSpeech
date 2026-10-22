@@ -138,6 +138,21 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
     state = state.copyWith(status: SpeechStatus.ready);
   }
 
+  /// နောက်ဆုံးထုတ်ထားသော အသံကို ပြန်ဖွင့်သည် — model ကို ထပ်မ run သဖြင့် ချက်ချင်းစပြီး ကြားခဲ့သည့်အတိုင်း တူညီသည်။
+  Future<void> replayGeneratedAudio() async {
+    final Uint8List? audio = _downloadableAudio;
+    if (audio == null || !state.canReplay) return;
+    state = state.copyWith(status: SpeechStatus.replaying);
+    try {
+      await _onDevice.replay(wav: audio);
+      if (!ref.mounted) return;
+      developer.log('action=replay bytes=${audio.length} result=ok', name: _LOG_NAME);
+      state = state.copyWith(status: SpeechStatus.ready);
+    } on AudioOutputException catch (error) {
+      _reportSpeakFailure(platformMessage: error.platformMessage);
+    }
+  }
+
   /// စာပြင်လိုက်လျှင် ယခင်အသံသည် စာနှင့် မကိုက်တော့သဖြင့် download မပေးတော့ရန်။
   void discardGeneratedAudio() {
     if (_downloadableAudio == null && !state.hasDownloadableAudio) return;

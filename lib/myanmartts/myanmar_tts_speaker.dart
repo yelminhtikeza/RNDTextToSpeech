@@ -28,6 +28,9 @@ abstract interface class OnDeviceSpeaker {
   /// ရပ်လိုက်ပါက အပိုင်းလိုက်သာ ရှိ၍ null ပြန်ပေးသည်။
   Future<SpokenAudio?> speak({required String text, required SynthesisSettings settings});
 
+  /// ထုတ်ပြီးသား [wav] ကို model မ run ဘဲ ပြန်ဖွင့်သည်။ ဖွင့်ပြီးဆုံးသည် သို့မဟုတ် [stop] ခေါ်သည်အထိ စောင့်သည်။
+  Future<void> replay({required Uint8List wav});
+
   Future<void> stop();
 
   Future<void> dispose();
@@ -99,6 +102,12 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
       // ရပ်လိုက်၍ မစောင့်တော့သော ကြိုထုတ်မှု၏ cancel exception ကို unhandled မဖြစ်စေရန်။
       pending?.ignore();
     }
+  }
+
+  @override
+  Future<void> replay({required Uint8List wav}) async {
+    _isStopRequested = false;
+    await _audioOutput.playWav(wav: wav);
   }
 
   @override

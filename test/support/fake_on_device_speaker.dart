@@ -9,13 +9,20 @@ import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_speaker.dart';
 import 'package:rnd_text_to_speech/myanmartts/synthesis_settings.dart';
 import 'package:rnd_text_to_speech/myanmartts/wav_encoder.dart';
 import 'package:rnd_text_to_speech/myanmartts/waveform_summary.dart';
+import 'package:rnd_text_to_speech/services/audio_output.dart';
 
 /// Controller test များအတွက် ONNX/audio မလိုသော speaker fake။
 class FakeOnDeviceSpeaker implements OnDeviceSpeaker {
-  FakeOnDeviceSpeaker({this.loadError, this.speakError});
+  FakeOnDeviceSpeaker({this.loadError, this.speakError, this.replayError});
 
   final MyanmarTtsException? loadError;
   final MyanmarTtsException? speakError;
+  final AudioOutputException? replayError;
+
+  final List<Uint8List> replayed = <Uint8List>[];
+
+  /// သတ်မှတ်ထားပါက replay() သည် stop() ခေါ်သည်အထိ ဆိုင်းငံ့နေမည်။
+  Completer<void>? pendingReplay;
 
   int loadCallCount = 0;
   String? spokenText;
@@ -57,11 +64,20 @@ class FakeOnDeviceSpeaker implements OnDeviceSpeaker {
   }
 
   @override
+  Future<void> replay({required Uint8List wav}) async {
+    if (replayError case final AudioOutputException error) throw error;
+    replayed.add(wav);
+    await pendingReplay?.future;
+  }
+
+  @override
   Future<void> stop() async {
     stopCallCount++;
     _wasStopped = true;
     pendingSpeak?.complete();
     pendingSpeak = null;
+    pendingReplay?.complete();
+    pendingReplay = null;
   }
 
   @override

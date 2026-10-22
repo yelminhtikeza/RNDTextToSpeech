@@ -11,6 +11,9 @@ enum SpeechStatus {
   ready,
   speaking,
 
+  /// ထုတ်ပြီးသား အသံကို ပြန်ဖွင့်နေသည် (model ကို ထပ်မ run ပါ)။
+  replaying,
+
   /// ရွေးထားသော engine ကို သုံး၍မရ — အကြောင်းရင်းကို [SpeechError] တွင် ကြည့်ပါ။
   /// Engine စာရင်းကို ဆက်ပြထားသဖြင့် အခြား engine သို့ ပြောင်းနိုင်သည်။
   engineUnavailable,
@@ -80,6 +83,13 @@ class BurmeseSpeechState {
 
   bool get isSpeaking => status == SpeechStatus.speaking;
 
+  bool get isReplaying => status == SpeechStatus.replaying;
+
+  /// ဖတ်နေစဉ် သို့မဟုတ် ပြန်ဖွင့်နေစဉ် — Stop ခလုတ် ဖွင့်ရန်နှင့် ချိန်ညှိချက်များ ပိတ်ရန်။
+  bool get isPlayingAudio => isSpeaking || isReplaying;
+
+  bool get canReplay => hasDownloadableAudio && status == SpeechStatus.ready;
+
   bool get isOnDeviceSelected => selectedEngine == TtsConfig.ON_DEVICE_ENGINE_ID;
 
   /// MyanmarTTS model တွင် pitch ထိန်းချုပ်မှု မပါသဖြင့် Android engine တွင်သာ ရသည်။
@@ -94,7 +104,7 @@ class BurmeseSpeechState {
   bool get canDownload => supportsDownload && hasDownloadableAudio && !isSpeaking && !isSavingAudio;
 
   /// Engine ရှာပြီးမှ (load မပြီးသေးလည်း) engine ပြောင်းရန် စာရင်းကို ပြနိုင်သည်။
-  bool get canChooseEngine => engines.isNotEmpty && status != SpeechStatus.detecting && !isSpeaking;
+  bool get canChooseEngine => engines.isNotEmpty && status != SpeechStatus.detecting && !isPlayingAudio;
 
   BurmeseSpeechState copyWith({
     SpeechStatus? status,

@@ -106,4 +106,7 @@ class AppLocalizationsMy extends AppLocalizations {
   String generatedAudioDuration(String seconds) {
     return 'ထုတ်ထားသော အသံ · $seconds စက္ကန့်';
   }
+
+  @override
+  String get playButton => 'ပြန်ဖွင့်ပါ';
 }

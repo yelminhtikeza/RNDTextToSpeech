@@ -178,4 +178,18 @@ void main() {
     await tester.pump();
     expect(find.byType(WaveformView), findsNothing);
   });
+
+  testWidgets('Play replays the generated audio next to the waveform', (WidgetTester tester) async {
+    final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+    await _pumpApp(tester, onDevice: onDevice);
+    expect(find.text('Play'), findsNothing);
+
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+    expect(find.text('Play'), findsOneWidget);
+
+    await tester.tap(find.text('Play'));
+    await tester.pumpAndSettle();
+    expect(onDevice.replayed, hasLength(1));
+  });
 }

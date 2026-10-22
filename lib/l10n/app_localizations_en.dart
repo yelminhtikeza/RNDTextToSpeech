@@ -104,4 +104,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String generatedAudioDuration(String seconds) {
     return 'Generated audio · $seconds s';
   }
+
+  @override
+  String get playButton => 'Play';
 }

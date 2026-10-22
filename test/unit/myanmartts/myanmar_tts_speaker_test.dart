@@ -199,4 +199,13 @@ void main() {
     await Future.wait(<Future<void>>[speaker.load(), speaker.load()]);
     expect(models.loadCallCount, 2);
   });
+
+  test('replay plays the given audio without touching the models', () async {
+    final Uint8List wav = Uint8List.fromList(<int>[1, 2, 3]);
+
+    await speaker.replay(wav: wav);
+
+    expect(audio.played, <Uint8List>[wav]);
+    expect(models.encodedTokenCounts, isEmpty);
+  });
 }

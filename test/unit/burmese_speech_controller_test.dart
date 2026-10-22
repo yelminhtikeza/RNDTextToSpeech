@@ -9,6 +9,7 @@ import 'package:rnd_text_to_speech/models/burmese_speech_state.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/providers/burmese_speech_controller.dart';
 import 'package:rnd_text_to_speech/services/audio_file_saver.dart';
+import 'package:rnd_text_to_speech/services/audio_output.dart';
 
 import '../support/fake_audio_file_saver.dart';
 import '../support/fake_on_device_speaker.dart';
@@ -338,6 +339,69 @@ void main() {
 
       expect(result.status, AudioSaveStatus.failed);
       expect(result.platformMessage, 'disk full');
+    });
+  });
+
+  group('replay', () {
+    test('replays the stored audio without generating it again', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+      expect(_stateOf(container).canReplay, isFalse);
+
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+      onDevice.spokenText = null;
+      await _controllerOf(container).replayGeneratedAudio();
+
+      expect(onDevice.replayed, <Object>[onDevice.spokenAudio]);
+      expect(onDevice.spokenText, isNull, reason: 'replay must not run the model');
+      expect(_stateOf(container).status, SpeechStatus.ready);
+      expect(_stateOf(container).canReplay, isTrue, reason: 'can replay again');
+    });
+
+    test('is replaying while audio plays and Stop ends it', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+
+      onDevice.pendingReplay = Completer<void>();
+      final Future<void> replaying = _controllerOf(container).replayGeneratedAudio();
+      await pumpEventQueue();
+      expect(_stateOf(container).isReplaying, isTrue);
+      expect(_stateOf(container).isPlayingAudio, isTrue);
+      expect(_stateOf(container).canSpeak, isFalse);
+      expect(_stateOf(container).canChooseEngine, isFalse);
+
+      await _controllerOf(container).stop();
+      await replaying;
+
+      expect(_stateOf(container).status, SpeechStatus.ready);
+      expect(_stateOf(container).error, isNull);
+      expect(_stateOf(container).hasDownloadableAudio, isTrue, reason: 'stopping a replay keeps the audio');
+    });
+
+    test('does nothing when there is no generated audio', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+
+      await _controllerOf(container).replayGeneratedAudio();
+
+      expect(onDevice.replayed, isEmpty);
+      expect(_stateOf(container).status, SpeechStatus.ready);
+    });
+
+    test('a playback failure shows the platform message', () async {
+      final ProviderContainer container = await _createDetectedContainer(
+        onDevice: FakeOnDeviceSpeaker(
+          replayError: const AudioOutputException(operation: 'play', platformMessage: 'audio focus lost'),
+        ),
+      );
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+
+      await _controllerOf(container).replayGeneratedAudio();
+
+      expect(_stateOf(container).error, SpeechError.speakFailed);
+      expect(_stateOf(container).platformMessage, 'audio focus lost');
+      expect(_stateOf(container).status, SpeechStatus.ready);
     });
   });
 }

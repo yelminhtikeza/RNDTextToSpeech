@@ -271,6 +271,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Generated audio · {seconds} s'**
   String generatedAudioDuration(String seconds);
+
+  /// No description provided for @playButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get playButton;
 }
 
 class _AppLocalizationsDelegate
