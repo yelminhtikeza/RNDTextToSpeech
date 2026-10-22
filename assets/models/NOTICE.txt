@@ -1,13 +1,26 @@
-MyanmarTTS on-device models (assets/models/myanmartts_v1_*.onnx)
-==================================================================
+MyanmarTTS on-device models (assets/models/myanmartts_v*.onnx)
+and preset voices (assets/voices/presets.json)
+===================================================================
 
 These ONNX files are converted from https://huggingface.co/freococo/MyanmarTTS
 by tools/myanmartts_onnx/ in this repository.
 
-myanmartts_v1_encoder.onnx, myanmartts_v1_prenet.onnx, myanmartts_v1_estimator.onnx
+myanmartts_v2_encoder.onnx, myanmartts_v1_prenet.onnx, myanmartts_v2_estimator.onnx,
+myanmartts_v1_reference.onnx
   Converted from model_fp32.pt by freococo — CC0 1.0 Universal (public domain).
   https://creativecommons.org/publicdomain/zero/1.0/
   Generated audio is also CC0 1.0.
+
+assets/voices/presets.json
+  Voice fingerprints (speaker embeddings) computed with the models above.
+  - "original": from freococo/MyanmarTTS samples/sample_0.wav — CC0 1.0.
+  - All other presets: from speech recordings in Google FLEURS (Burmese, my_mm),
+    licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+    Conneau et al., "FLEURS: Few-shot Learning Evaluation of Universal
+    Representations of Speech", 2022. https://huggingface.co/datasets/google/fleurs
+    Changes: each recording was resampled to 44.1 kHz and reduced to a
+    256-number speaker embedding; no audio from FLEURS is included in the app.
+    The source file of each preset is listed in its "source" field.
 
 myanmartts_v1_vocos.onnx
   Converted from vocos.pt, the pretrained Vocos vocoder from the StableTTS1.1

@@ -21,6 +21,7 @@ class OnnxMyanmarTtsModels implements MyanmarTtsModels {
   OrtSession? _prenet;
   OrtSession? _estimator;
   OrtSession? _vocoder;
+  OrtSession? _reference;
 
   @override
   Future<void> load() => _guard(
@@ -35,23 +36,26 @@ class OnnxMyanmarTtsModels implements MyanmarTtsModels {
           _prenet = await _createSession(asset: MyanmarTtsConfig.PRENET_ASSET, options: options);
           _estimator = await _createSession(asset: MyanmarTtsConfig.ESTIMATOR_ASSET, options: options);
           _vocoder = await _createSession(asset: MyanmarTtsConfig.VOCODER_ASSET, options: options);
+          _reference = await _createSession(asset: MyanmarTtsConfig.REFERENCE_ASSET, options: options);
           developer.log('action=load result=ok elapsed_ms=${stopwatch.elapsedMilliseconds}', name: _LOG_NAME);
         },
       );
 
   @override
-  Future<EncoderOutput> encode({required Int64List tokens}) => _guard(
+  Future<EncoderOutput> encode({required Int64List tokens, required Float32List speaker}) => _guard(
         operation: 'encode',
         action: () async {
           final OrtValue input = await OrtValue.fromList(tokens, <int>[1, tokens.length]);
-          final Map<String, OrtValue> outputs = await _requireSession(_encoder).run(<String, OrtValue>{'tokens': input});
+          final OrtValue speakerValue = await _speakerValue(speaker: speaker);
+          final Map<String, OrtValue> outputs = await _requireSession(_encoder)
+              .run(<String, OrtValue>{'tokens': input, 'speaker': speakerValue});
           try {
             return EncoderOutput(
               features: await _readFloats(value: outputs['mu_x']),
               logDurations: await _readFloats(value: outputs['logw']),
             );
           } finally {
-            await _disposeAll(values: <OrtValue?>[input, ...outputs.values]);
+            await _disposeAll(values: <OrtValue?>[input, speakerValue, ...outputs.values]);
           }
         },
       );
@@ -63,6 +67,7 @@ class OnnxMyanmarTtsModels implements MyanmarTtsModels {
     required Float32List noise,
     required int flowSteps,
     required double cfgStrength,
+    required Float32List speaker,
     required bool Function() isCancelled,
   }) =>
       _guard(
@@ -82,7 +87,8 @@ class OnnxMyanmarTtsModels implements MyanmarTtsModels {
             final OrtValue dt = await OrtValue.fromList(Float32List.fromList(<double>[stepSize]), <int>[1]);
             final OrtValue cfg =
                 await OrtValue.fromList(Float32List.fromList(<double>[cfgStrength]), <int>[1]);
-            owned.addAll(<OrtValue>[dt, cfg]);
+            final OrtValue speakerValue = await _speakerValue(speaker: speaker);
+            owned.addAll(<OrtValue>[dt, cfg, speakerValue]);
 
             OrtValue x = await OrtValue.fromList(noise, melShape);
             owned.add(x);
@@ -90,7 +96,14 @@ class OnnxMyanmarTtsModels implements MyanmarTtsModels {
               if (isCancelled()) throw const SynthesisCancelledException();
               final OrtValue t = await OrtValue.fromList(Float32List.fromList(<double>[step * stepSize]), <int>[1]);
               final Map<String, OrtValue> stepOutputs = await _requireSession(_estimator)
-                  .run(<String, OrtValue>{'x': x, 'mu_proj': conditioning, 't': t, 'dt': dt, 'cfg': cfg});
+                  .run(<String, OrtValue>{
+                'x': x,
+                'mu_proj': conditioning,
+                't': t,
+                'dt': dt,
+                'cfg': cfg,
+                'speaker': speakerValue,
+              });
               owned.remove(x);
               await _disposeAll(values: <OrtValue>[x, t]);
               x = stepOutputs['x_next']!;
@@ -114,12 +127,31 @@ class OnnxMyanmarTtsModels implements MyanmarTtsModels {
       );
 
   @override
+  Future<Float32List> embedSpeaker({required Float32List magnitude, required int frames}) => _guard(
+        operation: 'embedSpeaker',
+        action: () async {
+          final int bins = magnitude.length ~/ frames;
+          final OrtValue input = await OrtValue.fromList(magnitude, <int>[1, bins, frames]);
+          final Map<String, OrtValue> outputs =
+              await _requireSession(_reference).run(<String, OrtValue>{'magnitude': input});
+          try {
+            return await _readFloats(value: outputs['speaker']);
+          } finally {
+            await _disposeAll(values: <OrtValue?>[input, ...outputs.values]);
+          }
+        },
+      );
+
+  @override
   Future<void> dispose() async {
-    for (final OrtSession? session in <OrtSession?>[_encoder, _prenet, _estimator, _vocoder]) {
+    for (final OrtSession? session in <OrtSession?>[_encoder, _prenet, _estimator, _vocoder, _reference]) {
       await session?.close();
     }
-    _encoder = _prenet = _estimator = _vocoder = null;
+    _encoder = _prenet = _estimator = _vocoder = _reference = null;
   }
+
+  static Future<OrtValue> _speakerValue({required Float32List speaker}) =>
+      OrtValue.fromList(speaker, <int>[1, MyanmarTtsConfig.SPEAKER_EMBEDDING_SIZE]);
 
   Future<OrtSession> _createSession({required String asset, required OrtSessionOptions options}) async {
     final Stopwatch stopwatch = Stopwatch()..start();

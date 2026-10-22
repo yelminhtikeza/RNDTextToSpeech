@@ -34,6 +34,9 @@ enum SpeechError {
 
   /// Android engine က my-MM ကို လက်မခံ။
   languageUnavailable,
+
+  /// MyanmarTTS အသံစာရင်း မရသေး/မရ (load မပြီး သို့မဟုတ် မအောင်မြင်)။
+  voiceUnavailable,
 }
 
 class BurmeseSpeechState {
@@ -94,6 +97,9 @@ class BurmeseSpeechState {
 
   /// MyanmarTTS model တွင် pitch ထိန်းချုပ်မှု မပါသဖြင့် Android engine တွင်သာ ရသည်။
   bool get supportsPitch => !isOnDeviceSelected;
+
+  /// အသံပြောင်းခြင်း (preset/အသံသွင်း) သည် MyanmarTTS တွင်သာ — Android engine ၏ အသံကို app က မထိန်းချုပ်။
+  bool get supportsVoices => isOnDeviceSelected;
 
   /// Step နှင့် CFG သည် MyanmarTTS model ၏ ချိန်ညှိချက်ဖြစ်၍ Android engine တွင် မရှိ။
   bool get supportsQualityControls => isOnDeviceSelected;

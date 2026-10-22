@@ -7,10 +7,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rnd_text_to_speech/config/myanmartts_config.dart';
 import 'package:rnd_text_to_speech/myanmartts/burmese_tokenizer.dart';
 import 'package:rnd_text_to_speech/myanmartts/inverse_stft.dart';
+import 'package:rnd_text_to_speech/myanmartts/magnitude_stft.dart';
 
 /// Python reference (tools/myanmartts_onnx/make_dart_fixtures.py) မှ ထုတ်ထားသော fixture။
 const String _FIXTURE_PATH = 'test/fixtures/myanmartts_reference.json';
 const double _ISTFT_TOLERANCE = 1e-5;
+
+/// Magnitude သည် ရာဂဏန်းအထိ ကြီးသဖြင့် relative tolerance (fixture ကို ဒဿမ ၅ နေရာ ဖြတ်ထား)။
+const double _STFT_RELATIVE_TOLERANCE = 1e-5;
 
 Map<String, dynamic> _loadFixture() =>
     jsonDecode(File(_FIXTURE_PATH).readAsStringSync()) as Map<String, dynamic>;
@@ -69,5 +73,30 @@ void main() {
       maxDiff = math.max(maxDiff, (audio[index] - expected[index]).abs());
     }
     expect(maxDiff, lessThan(_ISTFT_TOLERANCE));
+  });
+
+  test('MagnitudeStft matches the Python LinearSpectrogram reference', () {
+    final Map<String, dynamic> stft = fixture['magnitude_stft'] as Map<String, dynamic>;
+    final int length = stft['length'] as int;
+    // make_dart_fixtures.py ၏ sine ပေါင်းစု waveform ကို တူညီစွာ ပြန်တည်ဆောက်သည်။
+    final Float32List waveform = Float32List.fromList(<double>[
+      for (int n = 0; n < length; n++)
+        0.5 * math.sin(2 * math.pi * 220 * n / 44100) + 0.25 * math.sin(2 * math.pi * 3100 * n / 44100 + 0.4),
+    ]);
+
+    final ({Float32List magnitude, int frames}) result =
+        MagnitudeStft(fftSize: MyanmarTtsConfig.FFT_SIZE, hopLength: MyanmarTtsConfig.HOP_LENGTH)
+            .analyze(waveform: waveform);
+    final List<double> expected =
+        (stft['magnitude'] as List<dynamic>).cast<num>().map((num v) => v.toDouble()).toList();
+
+    expect(result.frames, stft['frames']);
+    expect(result.magnitude.length, expected.length);
+    final double peak = expected.reduce(math.max);
+    double maxDiff = 0;
+    for (int index = 0; index < expected.length; index++) {
+      maxDiff = math.max(maxDiff, (result.magnitude[index] - expected[index]).abs());
+    }
+    expect(maxDiff / peak, lessThan(_STFT_RELATIVE_TOLERANCE));
   });
 }

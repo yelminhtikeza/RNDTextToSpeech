@@ -21,6 +21,11 @@ class FakeOnDeviceSpeaker implements OnDeviceSpeaker {
 
   final List<Uint8List> replayed = <Uint8List>[];
 
+  /// createVoiceEmbedding() ပြန်ပေးမည့် လက်ဗွေ၊ ခေါ်ခဲ့သော recording များ။
+  final Float32List createdEmbedding = Float32List(MyanmarTtsConfig.SPEAKER_EMBEDDING_SIZE)..[2] = 1;
+  final List<({int samples, int sampleRate})> embeddingRequests = <({int samples, int sampleRate})>[];
+  MyanmarTtsException? embeddingError;
+
   /// သတ်မှတ်ထားပါက replay() သည် stop() ခေါ်သည်အထိ ဆိုင်းငံ့နေမည်။
   Completer<void>? pendingReplay;
 
@@ -61,6 +66,13 @@ class FakeOnDeviceSpeaker implements OnDeviceSpeaker {
       wav: spokenAudio,
       waveform: WaveformSummary.fromPcm16Wav(wav: spokenAudio, barCount: MyanmarTtsConfig.WAVEFORM_BAR_COUNT),
     );
+  }
+
+  @override
+  Future<Float32List> createVoiceEmbedding({required Float32List waveform, required int sampleRate}) async {
+    if (embeddingError case final MyanmarTtsException error) throw error;
+    embeddingRequests.add((samples: waveform.length, sampleRate: sampleRate));
+    return createdEmbedding;
   }
 
   @override

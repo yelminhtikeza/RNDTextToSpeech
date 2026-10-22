@@ -8,12 +8,14 @@ import 'package:rnd_text_to_speech/models/audio_save_result.dart';
 import 'package:rnd_text_to_speech/models/burmese_speech_state.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/providers/burmese_speech_controller.dart';
+import 'package:rnd_text_to_speech/providers/voice_controller.dart';
 import 'package:rnd_text_to_speech/services/audio_file_saver.dart';
 import 'package:rnd_text_to_speech/services/audio_output.dart';
 
 import '../support/fake_audio_file_saver.dart';
 import '../support/fake_on_device_speaker.dart';
 import '../support/fake_tts_service.dart';
+import '../support/fake_voice_library.dart';
 
 const String _GOOGLE = 'com.google.android.tts';
 const String _BURMESE_ENGINE = 'com.example.burmese.tts';
@@ -31,6 +33,7 @@ Future<ProviderContainer> _createDetectedContainer({
       ttsServiceProvider.overrideWithValue(system ?? FakeTtsService()),
       onDeviceSpeakerProvider.overrideWithValue(onDevice ?? FakeOnDeviceSpeaker()),
       audioFileSaverProvider.overrideWithValue(saver ?? FakeAudioFileSaver()),
+      voiceLibraryProvider.overrideWithValue(FakeVoiceLibrary()),
     ],
   );
   addTearDown(container.dispose);
@@ -403,5 +406,18 @@ void main() {
       expect(_stateOf(container).platformMessage, 'audio focus lost');
       expect(_stateOf(container).status, SpeechStatus.ready);
     });
+  });
+
+  test('speaks with the selected voice', () async {
+    final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+    final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+    expect(_stateOf(container).supportsVoices, isTrue);
+
+    await _controllerOf(container).speak(text: _BURMESE_TEXT);
+    expect(onDevice.settings!.speaker, FakeVoiceLibrary.original.embedding, reason: 'default is the first preset');
+
+    container.read(voiceControllerProvider.notifier).selectVoice(voiceId: 'male_3');
+    await _controllerOf(container).speak(text: _BURMESE_TEXT);
+    expect(onDevice.settings!.speaker, FakeVoiceLibrary.male.embedding);
   });
 }

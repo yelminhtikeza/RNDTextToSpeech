@@ -43,5 +43,60 @@
       }
     }
   },
-  "playButton": "Play"
+  "playButton": "Play",
+  "voiceLabel": "Voice",
+  "customVoiceLabel": "{name} (recorded)",
+  "@customVoiceLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "recordVoiceButton": "Record a voice",
+  "deleteVoiceButton": "Delete voice",
+  "deleteVoiceTitle": "Delete this voice?",
+  "deleteVoiceMessage": "\"{name}\" will be removed from this phone.",
+  "@deleteVoiceMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "cancelButton": "Cancel",
+  "voiceAdded": "Voice added.",
+  "errorVoiceUnavailable": "Voices could not be loaded.",
+  "errorVoiceSaveFailed": "Could not save the voice.",
+  "recordSheetTitle": "Record a voice",
+  "recordInstructions": "In a quiet place, read the sentence below clearly at a normal pace. Speak for at least 5 seconds.",
+  "recordPromptText": "မင်္ဂလာပါ။ ကျွန်ုပ်၏ အသံကို မှတ်တမ်းတင်နေပါသည်။ ယနေ့ ရာသီဥတု သာယာပြီး လူတိုင်း ကျန်းမာ ပျော်ရွှင်ကြပါစေ။",
+  "recordConsent": "Only record your own voice or a voice you have permission to use. The recording is not kept — only a voice fingerprint is saved on this phone.",
+  "recordElapsed": "{elapsed} / {max} s",
+  "@recordElapsed": {
+    "placeholders": {
+      "elapsed": {
+        "type": "String"
+      },
+      "max": {
+        "type": "String"
+      }
+    }
+  },
+  "recordStartButton": "Start recording",
+  "recordStopButton": "Stop",
+  "recordAgainButton": "Record again",
+  "voiceNameLabel": "Voice name",
+  "voiceNameHint": "For example: My voice",
+  "saveVoiceButton": "Save voice",
+  "errorVoiceNameEmpty": "Enter a name for this voice.",
+  "errorMicrophonePermission": "Microphone permission is needed to record a voice.",
+  "errorRecordingTooShort": "Recording is too short. Speak for at least {seconds} seconds.",
+  "@errorRecordingTooShort": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  }
 }

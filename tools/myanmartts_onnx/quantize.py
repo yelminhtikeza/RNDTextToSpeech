@@ -8,6 +8,7 @@
 - prenet: fp32 — per-tensor int8 တွင် error 18%။
 - vocos: fp32 — head output ကို exp() ယူသဖြင့် error ချဲ့ထွင်ပြီး int8 ဖြင့် အသံကြမ်းသည်။
   (MatMul-only int8 vocos = 62 MB set ကို နားထောင်ပြီး ပယ်ခဲ့သည်။)
+- reference: fp32 — 2.4 MB သာရှိပြီး အသံသွင်းချိန် တစ်ကြိမ်သာ run သဖြင့် quantize မလိုပါ။
 """
 import shutil
 import sys
@@ -18,6 +19,6 @@ src, dst = sys.argv[1:3]
 for name in ("encoder", "estimator"):
     quantize_dynamic(f"{src}/{name}.onnx", f"{dst}/{name}.onnx", weight_type=QuantType.QUInt8, per_channel=True)
     print("quantized", name)
-for name in ("prenet", "vocos"):
+for name in ("prenet", "vocos", "reference"):
     shutil.copy(f"{src}/{name}.onnx", f"{dst}/{name}.onnx")
     print("copied fp32", name)

@@ -1,16 +1,17 @@
 """Quantize လုပ်ထားသော model ၏ error ကို component တစ်ခုချင်း၊ input တူညီစွာဖြင့် တိုင်းသည်။
 
-အသုံးပြုပုံ: python quant_error.py <pkg_src_dir> <fp32_onnx_dir> <quantized_onnx_dir>
+အသုံးပြုပုံ: python quant_error.py <pkg_src_dir> <fp32_onnx_dir> <quantized_onnx_dir> <presets_json>
 """
 import sys
 
 import numpy as np
 
-from common import SAMPLE_TEXT, load_sessions, tokenize, use_package
+from common import SAMPLE_TEXT, load_sessions, preset_speaker, tokenize, use_package
 
 STEPS, CFG = 16, 3.0
 
-pkg_dir, fp_dir, q_dir = sys.argv[1:4]
+pkg_dir, fp_dir, q_dir, presets_json = sys.argv[1:5]
+SPEAKER = preset_speaker(presets_json, "original")
 use_package(pkg_dir)
 
 
@@ -21,8 +22,8 @@ def relative(a, b):
 def main():
     fp, q = load_sessions(fp_dir), load_sessions(q_dir)
     tokens = tokenize(SAMPLE_TEXT)
-    mu_x_fp, logw_fp = fp[0].run(None, {"tokens": tokens})
-    mu_x_q, logw_q = q[0].run(None, {"tokens": tokens})
+    mu_x_fp, logw_fp = fp[0].run(None, {"tokens": tokens, "speaker": SPEAKER})
+    mu_x_q, logw_q = q[0].run(None, {"tokens": tokens, "speaker": SPEAKER})
     print(f"encoder mu_x rel={relative(mu_x_q, mu_x_fp):.3f} "
           f"frames fp={int(np.ceil(np.exp(logw_fp)).sum())} q={int(np.ceil(np.exp(logw_q)).sum())}")
 
@@ -36,7 +37,7 @@ def main():
         for k in range(STEPS):
             x = sessions[2].run(None, {"x": x, "mu_proj": mu_proj, "t": np.array([k / STEPS], np.float32),
                                        "dt": np.array([1 / STEPS], np.float32),
-                                       "cfg": np.array([CFG], np.float32)})[0]
+                                       "cfg": np.array([CFG], np.float32), "speaker": SPEAKER})[0]
         return x
 
     mel_fp, mel_q = run_decoder(fp), run_decoder(q)

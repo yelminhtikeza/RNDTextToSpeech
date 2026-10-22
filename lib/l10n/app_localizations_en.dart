@@ -107,4 +107,88 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playButton => 'Play';
+
+  @override
+  String get voiceLabel => 'Voice';
+
+  @override
+  String customVoiceLabel(String name) {
+    return '$name (recorded)';
+  }
+
+  @override
+  String get recordVoiceButton => 'Record a voice';
+
+  @override
+  String get deleteVoiceButton => 'Delete voice';
+
+  @override
+  String get deleteVoiceTitle => 'Delete this voice?';
+
+  @override
+  String deleteVoiceMessage(String name) {
+    return '\"$name\" will be removed from this phone.';
+  }
+
+  @override
+  String get cancelButton => 'Cancel';
+
+  @override
+  String get voiceAdded => 'Voice added.';
+
+  @override
+  String get errorVoiceUnavailable => 'Voices could not be loaded.';
+
+  @override
+  String get errorVoiceSaveFailed => 'Could not save the voice.';
+
+  @override
+  String get recordSheetTitle => 'Record a voice';
+
+  @override
+  String get recordInstructions =>
+      'In a quiet place, read the sentence below clearly at a normal pace. Speak for at least 5 seconds.';
+
+  @override
+  String get recordPromptText =>
+      'မင်္ဂလာပါ။ ကျွန်ုပ်၏ အသံကို မှတ်တမ်းတင်နေပါသည်။ ယနေ့ ရာသီဥတု သာယာပြီး လူတိုင်း ကျန်းမာ ပျော်ရွှင်ကြပါစေ။';
+
+  @override
+  String get recordConsent =>
+      'Only record your own voice or a voice you have permission to use. The recording is not kept — only a voice fingerprint is saved on this phone.';
+
+  @override
+  String recordElapsed(String elapsed, String max) {
+    return '$elapsed / $max s';
+  }
+
+  @override
+  String get recordStartButton => 'Start recording';
+
+  @override
+  String get recordStopButton => 'Stop';
+
+  @override
+  String get recordAgainButton => 'Record again';
+
+  @override
+  String get voiceNameLabel => 'Voice name';
+
+  @override
+  String get voiceNameHint => 'For example: My voice';
+
+  @override
+  String get saveVoiceButton => 'Save voice';
+
+  @override
+  String get errorVoiceNameEmpty => 'Enter a name for this voice.';
+
+  @override
+  String get errorMicrophonePermission =>
+      'Microphone permission is needed to record a voice.';
+
+  @override
+  String errorRecordingTooShort(int seconds) {
+    return 'Recording is too short. Speak for at least $seconds seconds.';
+  }
 }

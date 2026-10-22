@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- MyanmarTTS အတွက် ကိုယ်ပိုင်အသံ သွင်းရန် (record package)။ အသံဖိုင်ကို မသိမ်း — လက်ဗွေသာ သိမ်းသည်။ -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="rnd_text_to_speech"
         android:name="${applicationName}"

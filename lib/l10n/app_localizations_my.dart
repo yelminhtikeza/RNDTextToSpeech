@@ -109,4 +109,88 @@ class AppLocalizationsMy extends AppLocalizations {
 
   @override
   String get playButton => 'ပြန်ဖွင့်ပါ';
+
+  @override
+  String get voiceLabel => 'အသံ';
+
+  @override
+  String customVoiceLabel(String name) {
+    return '$name (အသံသွင်း)';
+  }
+
+  @override
+  String get recordVoiceButton => 'အသံသွင်းပါ';
+
+  @override
+  String get deleteVoiceButton => 'အသံဖျက်ပါ';
+
+  @override
+  String get deleteVoiceTitle => 'ဤအသံကို ဖျက်မလား။';
+
+  @override
+  String deleteVoiceMessage(String name) {
+    return '\"$name\" ကို ဤဖုန်းမှ ဖယ်ရှားပါမည်။';
+  }
+
+  @override
+  String get cancelButton => 'မလုပ်တော့ပါ';
+
+  @override
+  String get voiceAdded => 'အသံ ထည့်ပြီးပါပြီ။';
+
+  @override
+  String get errorVoiceUnavailable => 'အသံများကို ဖွင့်၍ မရပါ။';
+
+  @override
+  String get errorVoiceSaveFailed => 'အသံကို သိမ်း၍ မရပါ။';
+
+  @override
+  String get recordSheetTitle => 'အသံသွင်းရန်';
+
+  @override
+  String get recordInstructions =>
+      'တိတ်ဆိတ်သော နေရာတွင် အောက်ပါစာကို ပုံမှန်အမြန်နှုန်းဖြင့် ရှင်းလင်းစွာ ဖတ်ပါ။ အနည်းဆုံး ၅ စက္ကန့် ပြောပါ။';
+
+  @override
+  String get recordPromptText =>
+      'မင်္ဂလာပါ။ ကျွန်ုပ်၏ အသံကို မှတ်တမ်းတင်နေပါသည်။ ယနေ့ ရာသီဥတု သာယာပြီး လူတိုင်း ကျန်းမာ ပျော်ရွှင်ကြပါစေ။';
+
+  @override
+  String get recordConsent =>
+      'ကိုယ်ပိုင်အသံ သို့မဟုတ် ခွင့်ပြုချက်ရထားသော အသံကိုသာ သွင်းပါ။ အသံဖိုင်ကို မသိမ်းပါ — အသံ လက်ဗွေကိုသာ ဤဖုန်းတွင် သိမ်းပါသည်။';
+
+  @override
+  String recordElapsed(String elapsed, String max) {
+    return '$elapsed / $max စက္ကန့်';
+  }
+
+  @override
+  String get recordStartButton => 'အသံသွင်း စပါ';
+
+  @override
+  String get recordStopButton => 'ရပ်ပါ';
+
+  @override
+  String get recordAgainButton => 'ပြန်သွင်းပါ';
+
+  @override
+  String get voiceNameLabel => 'အသံအမည်';
+
+  @override
+  String get voiceNameHint => 'ဥပမာ — ကျွန်ုပ်၏အသံ';
+
+  @override
+  String get saveVoiceButton => 'အသံသိမ်းပါ';
+
+  @override
+  String get errorVoiceNameEmpty => 'ဤအသံအတွက် အမည်ထည့်ပါ။';
+
+  @override
+  String get errorMicrophonePermission =>
+      'အသံသွင်းရန် မိုက်ခရိုဖုန်း ခွင့်ပြုချက် လိုအပ်ပါသည်။';
+
+  @override
+  String errorRecordingTooShort(int seconds) {
+    return 'အသံသွင်းချိန် တိုလွန်းသည်။ အနည်းဆုံး $seconds စက္ကန့် ပြောပါ။';
+  }
 }

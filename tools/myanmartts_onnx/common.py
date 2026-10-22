@@ -12,7 +12,7 @@ N_FFT = 2048
 HOP = 512
 SAMPLE_RATE = 44100
 MEL_CHANNELS = 128
-MODEL_NAMES = ("encoder", "prenet", "estimator", "vocos")
+MODEL_NAMES = ("encoder", "prenet", "estimator", "vocos", "reference")
 SAMPLE_TEXT = "မင်္ဂလာပါ။ မြန်မာစာကို အသံဖြင့် ဖတ်ပြနေပါသည်။"
 
 
@@ -80,6 +80,44 @@ def istft(real, imag):
     return (signal[pad:-pad] / envelope[pad:-pad]).astype(np.float32)
 
 
+def magnitude_stft(waveform):
+    """LinearSpectrogram (reflect pad 768 + STFT center=False + sqrt(|X|²+1e-6)) — lib/myanmartts/fft.dart ၏ reference။
+    waveform: 44.1 kHz float [N] → [1, 1025, F]"""
+    pad = (N_FFT - HOP) // 2
+    padded = np.pad(waveform.astype(np.float64), (pad, pad), mode="reflect")
+    window = np.hanning(N_FFT + 1)[:-1]
+    count = 1 + (len(padded) - N_FFT) // HOP
+    frames = np.stack([padded[i * HOP:i * HOP + N_FFT] * window for i in range(count)], axis=1)
+    spectrum = np.fft.rfft(frames, n=N_FFT, axis=0)
+    return np.sqrt(spectrum.real ** 2 + spectrum.imag ** 2 + 1e-6).astype(np.float32)[None]
+
+
+def speaker_embedding(reference_session, waveform):
+    """ဖုန်းနှင့် တစ်ထပ်တည်း — Dart magnitude STFT + reference.onnx။"""
+    return reference_session.run(None, {"magnitude": magnitude_stft(waveform)})[0]
+
+
+def load_wav_44k(path):
+    """Reference clip ကို 44.1 kHz mono float သို့ ပြောင်းသည် (FLEURS သည် 16 kHz)။"""
+    import soundfile as sf
+    from scipy.signal import resample_poly
+    data, rate = sf.read(path, dtype="float32", always_2d=True)
+    mono = data.mean(axis=1)
+    if rate != SAMPLE_RATE:
+        from math import gcd
+        divisor = gcd(rate, SAMPLE_RATE)
+        mono = resample_poly(mono, SAMPLE_RATE // divisor, rate // divisor).astype(np.float32)
+    return mono
+
+
+def preset_speaker(presets_json, preset_id):
+    """assets/voices/presets.json မှ preset အသံ၏ လက်ဗွေ [1, 256]။"""
+    import json
+    presets = json.load(open(presets_json, encoding="utf-8"))["presets"]
+    embedding = next(item["embedding"] for item in presets if item["id"] == preset_id)
+    return np.array([embedding], dtype=np.float32)
+
+
 def load_sessions(onnx_dir, threads=4):
     import onnxruntime as ort
     options = ort.SessionOptions()
@@ -88,20 +126,20 @@ def load_sessions(onnx_dir, threads=4):
             for name in MODEL_NAMES]
 
 
-def encode(sessions, tokens):
-    mu_x, logw = sessions[0].run(None, {"tokens": tokens})
+def encode(sessions, tokens, speaker):
+    mu_x, logw = sessions[0].run(None, {"tokens": tokens, "speaker": speaker})
     return np.repeat(mu_x, np.ceil(np.exp(logw[0, 0])).astype(np.int64), axis=2)
 
 
-def decode(sessions, mu_y, noise, steps, cfg):
+def decode(sessions, mu_y, noise, steps, cfg, speaker):
     """App (onnx_myanmar_tts_models.dart) နှင့် တစ်ထပ်တည်း — estimator graph ထဲတွင် Euler step ပါသည်။"""
-    _, prenet, estimator, vocos = sessions
+    _, prenet, estimator, vocos = sessions[:4]
     mu_proj = prenet.run(None, {"mu_y": mu_y})[0]
     x = noise.copy()
     dt = np.array([1.0 / steps], np.float32)
     cfg = np.array([cfg], np.float32)
     for k in range(steps):
         x = estimator.run(None, {"x": x, "mu_proj": mu_proj, "t": np.array([k / steps], np.float32),
-                                 "dt": dt, "cfg": cfg})[0]
+                                 "dt": dt, "cfg": cfg, "speaker": speaker})[0]
     real, imag = vocos.run(None, {"mel": x})
     return x, istft(real, imag)

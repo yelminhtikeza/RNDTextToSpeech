@@ -9,6 +9,7 @@ import '../models/audio_save_result.dart';
 import '../models/burmese_speech_state.dart';
 import '../providers/burmese_speech_controller.dart';
 import '../widgets/app_button.dart';
+import '../widgets/voice_section.dart';
 import '../widgets/waveform_view.dart';
 
 class BurmeseSpeechScreen extends ConsumerStatefulWidget {
@@ -52,6 +53,10 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
           children: <Widget>[
             _EngineStatusSection(speechState: speechState, controller: controller),
             const SizedBox(height: AppTheme.SPACING),
+            if (speechState.supportsVoices) ...<Widget>[
+              VoiceSection(isEnabled: !speechState.isPlayingAudio),
+              const SizedBox(height: AppTheme.SPACING),
+            ],
             TextField(
               controller: _textController,
               minLines: 4,
@@ -202,6 +207,7 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
       SpeechError.noSpeakableText => l10n.errorNoSpeakableText,
       SpeechError.speakFailed => speechState.platformMessage ?? l10n.errorSpeakFailed,
       // Engine အမှားများကို engine အပိုင်းတွင် ပြပြီးဖြစ်သည်။
+      SpeechError.voiceUnavailable => l10n.errorVoiceUnavailable,
       SpeechError.modelLoadFailed || SpeechError.languageUnavailable => null,
     };
   }

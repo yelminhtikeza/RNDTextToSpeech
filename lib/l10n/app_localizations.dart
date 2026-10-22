@@ -277,6 +277,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Play'**
   String get playButton;
+
+  /// No description provided for @voiceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice'**
+  String get voiceLabel;
+
+  /// No description provided for @customVoiceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} (recorded)'**
+  String customVoiceLabel(String name);
+
+  /// No description provided for @recordVoiceButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Record a voice'**
+  String get recordVoiceButton;
+
+  /// No description provided for @deleteVoiceButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete voice'**
+  String get deleteVoiceButton;
+
+  /// No description provided for @deleteVoiceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this voice?'**
+  String get deleteVoiceTitle;
+
+  /// No description provided for @deleteVoiceMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'\"{name}\" will be removed from this phone.'**
+  String deleteVoiceMessage(String name);
+
+  /// No description provided for @cancelButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancelButton;
+
+  /// No description provided for @voiceAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice added.'**
+  String get voiceAdded;
+
+  /// No description provided for @errorVoiceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Voices could not be loaded.'**
+  String get errorVoiceUnavailable;
+
+  /// No description provided for @errorVoiceSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the voice.'**
+  String get errorVoiceSaveFailed;
+
+  /// No description provided for @recordSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Record a voice'**
+  String get recordSheetTitle;
+
+  /// No description provided for @recordInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'In a quiet place, read the sentence below clearly at a normal pace. Speak for at least 5 seconds.'**
+  String get recordInstructions;
+
+  /// No description provided for @recordPromptText.
+  ///
+  /// In en, this message translates to:
+  /// **'မင်္ဂလာပါ။ ကျွန်ုပ်၏ အသံကို မှတ်တမ်းတင်နေပါသည်။ ယနေ့ ရာသီဥတု သာယာပြီး လူတိုင်း ကျန်းမာ ပျော်ရွှင်ကြပါစေ။'**
+  String get recordPromptText;
+
+  /// No description provided for @recordConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Only record your own voice or a voice you have permission to use. The recording is not kept — only a voice fingerprint is saved on this phone.'**
+  String get recordConsent;
+
+  /// No description provided for @recordElapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'{elapsed} / {max} s'**
+  String recordElapsed(String elapsed, String max);
+
+  /// No description provided for @recordStartButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Start recording'**
+  String get recordStartButton;
+
+  /// No description provided for @recordStopButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get recordStopButton;
+
+  /// No description provided for @recordAgainButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Record again'**
+  String get recordAgainButton;
+
+  /// No description provided for @voiceNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice name'**
+  String get voiceNameLabel;
+
+  /// No description provided for @voiceNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For example: My voice'**
+  String get voiceNameHint;
+
+  /// No description provided for @saveVoiceButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Save voice'**
+  String get saveVoiceButton;
+
+  /// No description provided for @errorVoiceNameEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a name for this voice.'**
+  String get errorVoiceNameEmpty;
+
+  /// No description provided for @errorMicrophonePermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone permission is needed to record a voice.'**
+  String get errorMicrophonePermission;
+
+  /// No description provided for @errorRecordingTooShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording is too short. Speak for at least {seconds} seconds.'**
+  String errorRecordingTooShort(int seconds);
 }
 
 class _AppLocalizationsDelegate

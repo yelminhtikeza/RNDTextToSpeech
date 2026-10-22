@@ -11,6 +11,7 @@ import '../config/myanmartts_config.dart';
 import '../config/tts_config.dart';
 import '../models/audio_save_result.dart';
 import '../models/burmese_speech_state.dart';
+import '../models/voice_profile.dart';
 import '../myanmartts/myanmar_tts_models.dart';
 import '../myanmartts/myanmar_tts_speaker.dart';
 import '../myanmartts/onnx_myanmar_tts_models.dart';
@@ -22,6 +23,7 @@ import '../services/audioplayers_audio_output.dart';
 import '../services/file_dialog_audio_file_saver.dart';
 import '../services/flutter_tts_service.dart';
 import '../services/tts_service.dart';
+import 'voice_controller.dart';
 
 final ttsServiceProvider = Provider<TtsService>(
   (Ref ref) => FlutterTtsService(flutterTts: FlutterTts()),
@@ -217,6 +219,8 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
     );
     try {
       await _onDevice.load();
+      // အသံစာရင်း မရသေးမီ "ready" မဖြစ်စေရန် — မဟုတ်ပါက ချက်ချင်းနှိပ်လျှင် voiceUnavailable ဖြစ်မည်။
+      await ref.read(voiceControllerProvider.notifier).ensureLoaded();
       if (!ref.mounted) return;
       developer.log('action=selectEngine engine=${TtsConfig.ON_DEVICE_ENGINE_ID} result=ok', name: _LOG_NAME);
       state = state.copyWith(status: SpeechStatus.ready);
@@ -252,12 +256,18 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
   }
 
   Future<void> _speakOnDevice({required String text}) async {
+    final VoiceProfile? voice = ref.read(voiceControllerProvider).selectedVoice;
+    if (voice == null) {
+      state = state.withError(error: SpeechError.voiceUnavailable, status: SpeechStatus.ready);
+      return;
+    }
     try {
       // Slider ၏ speech rate (0.5 = ပုံမှန်) ကို duration multiplier အဖြစ် ပြောင်းသည် — rate မြင့်လေ အသံတိုလေ။
       final SpokenAudio? audio = await _onDevice.speak(
         text: text,
         settings: SynthesisSettings(
           lengthScale: TtsConfig.SPEECH_RATE_DEFAULT / state.speechRate,
+          speaker: voice.embedding,
           flowSteps: state.flowSteps,
           cfgStrength: state.cfgStrength,
         ),

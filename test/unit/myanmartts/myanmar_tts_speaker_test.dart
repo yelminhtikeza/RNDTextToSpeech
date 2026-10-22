@@ -11,6 +11,8 @@ import 'package:rnd_text_to_speech/myanmartts/waveform_summary.dart';
 import 'package:rnd_text_to_speech/services/audio_output.dart';
 
 const int _BINS = MyanmarTtsConfig.FFT_SIZE ~/ 2 + 1;
+final Float32List _speaker = Float32List(MyanmarTtsConfig.SPEAKER_EMBEDDING_SIZE)..[0] = 0.5;
+final Float32List _embedded = Float32List(MyanmarTtsConfig.SPEAKER_EMBEDDING_SIZE)..[1] = 0.25;
 const int _WAV_HEADER_BYTES = 44;
 const int _BYTES_PER_SAMPLE = 2;
 
@@ -25,6 +27,8 @@ class _FakeModels implements MyanmarTtsModels {
   final List<int> spectrumFrames = <int>[];
   final List<int> noiseLengths = <int>[];
   final List<(int, double)> stepsAndCfg = <(int, double)>[];
+  final List<Float32List> speakers = <Float32List>[];
+  final List<int> embeddedFrames = <int>[];
   Completer<void>? holdSpectrum;
 
   @override
@@ -37,7 +41,8 @@ class _FakeModels implements MyanmarTtsModels {
   }
 
   @override
-  Future<EncoderOutput> encode({required Int64List tokens}) async {
+  Future<EncoderOutput> encode({required Int64List tokens, required Float32List speaker}) async {
+    speakers.add(speaker);
     encodedTokenCounts.add(tokens.length);
     return EncoderOutput(
       features: Float32List(MyanmarTtsConfig.MEL_CHANNELS * tokens.length),
@@ -52,14 +57,23 @@ class _FakeModels implements MyanmarTtsModels {
     required Float32List noise,
     required int flowSteps,
     required double cfgStrength,
+    required Float32List speaker,
     required bool Function() isCancelled,
   }) async {
+    speakers.add(speaker);
     spectrumFrames.add(frames);
     stepsAndCfg.add((flowSteps, cfgStrength));
     noiseLengths.add(noise.length);
     await holdSpectrum?.future;
     if (isCancelled()) throw const SynthesisCancelledException();
     return StftSpectrum(real: Float32List(_BINS * frames), imag: Float32List(_BINS * frames), frames: frames);
+  }
+
+  @override
+  Future<Float32List> embedSpeaker({required Float32List magnitude, required int frames}) async {
+    embeddedFrames.add(frames);
+    expect(magnitude.length, _BINS * frames);
+    return _embedded;
   }
 
   @override
@@ -109,7 +123,7 @@ void main() {
   });
 
   test('synthesizes one chunk into a playable 44.1 kHz WAV', () async {
-    final SpokenAudio? spoken = await speaker.speak(text: 'ကခ', settings: const SynthesisSettings(lengthScale: 1.0));
+    final SpokenAudio? spoken = await speaker.speak(text: 'ကခ', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
 
     // "ကခ" -> blank,က,blank,ခ,blank = 5 tokens × 2 frames
     expect(models.encodedTokenCounts, <int>[5]);
@@ -129,23 +143,23 @@ void main() {
   test('forwards steps and CFG to the model for every chunk', () async {
     await speaker.speak(
       text: 'က။ ခ။',
-      settings: const SynthesisSettings(lengthScale: 1.0, flowSteps: 8, cfgStrength: 4.5),
+      settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0, flowSteps: 8, cfgStrength: 4.5),
     );
     expect(models.stepsAndCfg, <(int, double)>[(8, 4.5), (8, 4.5)]);
   });
 
   test('uses the chosen defaults when steps and CFG are not given', () async {
-    await speaker.speak(text: 'က', settings: const SynthesisSettings(lengthScale: 1.0));
+    await speaker.speak(text: 'က', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
     expect(models.stepsAndCfg.single, (MyanmarTtsConfig.FLOW_STEPS_DEFAULT, MyanmarTtsConfig.CFG_STRENGTH_DEFAULT));
   });
 
   test('length scale changes the number of frames', () async {
-    await speaker.speak(text: 'ကခ', settings: const SynthesisSettings(lengthScale: 0.5));
+    await speaker.speak(text: 'ကခ', settings: SynthesisSettings(speaker: _speaker, lengthScale: 0.5));
     expect(models.spectrumFrames, <int>[5]);
   });
 
   test('plays each sentence in order and skips chunks with nothing to say', () async {
-    final SpokenAudio? spoken = await speaker.speak(text: 'က။ hello။ ခဂ။', settings: const SynthesisSettings(lengthScale: 1.0));
+    final SpokenAudio? spoken = await speaker.speak(text: 'က။ hello။ ခဂ။', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
 
     expect(models.encodedTokenCounts, <int>[5, 7]);
     expect(audio.played, hasLength(2));
@@ -156,7 +170,7 @@ void main() {
 
   test('synthesizes the next sentence while the current one plays', () async {
     audio.holdPlayback = Completer<void>();
-    final Future<void> speaking = speaker.speak(text: 'က။ ခ။', settings: const SynthesisSettings(lengthScale: 1.0));
+    final Future<void> speaking = speaker.speak(text: 'က။ ခ။', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
     await _waitUntil(() => audio.played.isNotEmpty && models.spectrumFrames.length == 2);
 
     expect(audio.played, hasLength(1));
@@ -170,7 +184,7 @@ void main() {
 
   test('stop during synthesis cancels without playing or throwing', () async {
     models.holdSpectrum = Completer<void>();
-    final Future<void> speaking = speaker.speak(text: 'က', settings: const SynthesisSettings(lengthScale: 1.0));
+    final Future<void> speaking = speaker.speak(text: 'က', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
     await _waitUntil(() => models.spectrumFrames.isNotEmpty);
 
     await speaker.stop();
@@ -182,7 +196,7 @@ void main() {
 
   test('stop during playback does not start the next sentence', () async {
     audio.holdPlayback = Completer<void>();
-    final Future<SpokenAudio?> speaking = speaker.speak(text: 'က။ ခ။ ဂ။', settings: const SynthesisSettings(lengthScale: 1.0));
+    final Future<SpokenAudio?> speaking = speaker.speak(text: 'က။ ခ။ ဂ။', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
     await _waitUntil(() => audio.played.isNotEmpty);
 
     await speaker.stop();
@@ -207,5 +221,26 @@ void main() {
 
     expect(audio.played, <Uint8List>[wav]);
     expect(models.encodedTokenCounts, isEmpty);
+  });
+
+  test('passes the selected voice to the encoder and every estimator run', () async {
+    await speaker.speak(text: 'က', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
+    expect(models.speakers, hasLength(2));
+    expect(models.speakers.every((Float32List s) => identical(s, _speaker)), isTrue);
+  });
+
+  test('creates a voice embedding from a recording at the model sample rate', () async {
+    // 1 s @ 44.1 kHz → reflect pad 768 ×2 → 1 + (44100 + 1536 - 2048) / 512 = 86 frames
+    final Float32List embedding = await speaker.createVoiceEmbedding(
+      waveform: Float32List(MyanmarTtsConfig.SAMPLE_RATE),
+      sampleRate: MyanmarTtsConfig.SAMPLE_RATE,
+    );
+    expect(embedding, _embedded);
+    expect(models.embeddedFrames, <int>[86]);
+  });
+
+  test('resamples a 16 kHz recording to 44.1 kHz before analysis', () async {
+    await speaker.createVoiceEmbedding(waveform: Float32List(16000), sampleRate: 16000);
+    expect(models.embeddedFrames, <int>[86]);
   });
 }

@@ -6,7 +6,7 @@ abstract interface class MyanmarTtsModels {
   /// Asset များကို ဖတ်ပြီး ONNX session များ ဖန်တီးသည် — ပထမအကြိမ်တွင် ~97 MB ကူးရသဖြင့် ကြာနိုင်သည်။
   Future<void> load();
 
-  Future<EncoderOutput> encode({required Int64List tokens});
+  Future<EncoderOutput> encode({required Int64List tokens, required Float32List speaker});
 
   /// Flow-matching step [flowSteps] ခုနှင့် vocoder ကို run ပြီး complex spectrum ကို ပြန်ပေးသည်။
   /// Step တစ်ခုချင်းကြားတွင် [isCancelled] ကို စစ်ပြီး true ဖြစ်ပါက [SynthesisCancelledException] ပစ်သည်။
@@ -16,8 +16,12 @@ abstract interface class MyanmarTtsModels {
     required Float32List noise,
     required int flowSteps,
     required double cfgStrength,
+    required Float32List speaker,
     required bool Function() isCancelled,
   });
+
+  /// အသံသွင်းထားသော clip ၏ magnitude STFT (`[binCount, frames]`) မှ speaker embedding (အသံ လက်ဗွေ) တွက်သည်။
+  Future<Float32List> embedSpeaker({required Float32List magnitude, required int frames});
 
   Future<void> dispose();
 }

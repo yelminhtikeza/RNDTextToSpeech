@@ -9,6 +9,7 @@ import '../services/audio_output.dart';
 import 'burmese_tokenizer.dart';
 import 'inverse_stft.dart';
 import 'length_regulator.dart';
+import 'magnitude_stft.dart';
 import 'myanmar_tts_models.dart';
 import 'synthesis_settings.dart';
 import 'waveform_summary.dart';
@@ -27,6 +28,9 @@ abstract interface class OnDeviceSpeaker {
   /// အဆုံးထိ ဖတ်ပြီးပါက ကြားခဲ့သော အသံအားလုံးကို WAV တစ်ဖိုင်နှင့် waveform အဖြစ် ပြန်ပေးသည် (download/ပြသရန်)၊
   /// ရပ်လိုက်ပါက အပိုင်းလိုက်သာ ရှိ၍ null ပြန်ပေးသည်။
   Future<SpokenAudio?> speak({required String text, required SynthesisSettings settings});
+
+  /// အသံသွင်းထားသော [waveform] (မည်သည့် sample rate မဆို) မှ အသံ လက်ဗွေ ကို တွက်သည် — အသံအသစ် ဖန်တီးရန်။
+  Future<Float32List> createVoiceEmbedding({required Float32List waveform, required int sampleRate});
 
   /// ထုတ်ပြီးသား [wav] ကို model မ run ဘဲ ပြန်ဖွင့်သည်။ ဖွင့်ပြီးဆုံးသည် သို့မဟုတ် [stop] ခေါ်သည်အထိ စောင့်သည်။
   Future<void> replay({required Uint8List wav});
@@ -105,6 +109,18 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
   }
 
   @override
+  Future<Float32List> createVoiceEmbedding({required Float32List waveform, required int sampleRate}) async {
+    await load();
+    final ({Float32List magnitude, int frames}) spectrum =
+        await analyzeReferenceInIsolate(waveform: waveform, sampleRate: sampleRate);
+    final Float32List embedding =
+        await _models.embedSpeaker(magnitude: spectrum.magnitude, frames: spectrum.frames);
+    developer.log('action=createVoiceEmbedding samples=${waveform.length} rate=$sampleRate frames=${spectrum.frames}',
+        name: _LOG_NAME);
+    return embedding;
+  }
+
+  @override
   Future<void> replay({required Uint8List wav}) async {
     _isStopRequested = false;
     await _audioOutput.playWav(wav: wav);
@@ -125,7 +141,7 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
   Future<Uint8List> _synthesize({required String text, required SynthesisSettings settings}) async {
     final Stopwatch stopwatch = Stopwatch()..start();
     final Int64List tokens = _TOKENIZER.tokenize(text: text);
-    final EncoderOutput encoded = await _models.encode(tokens: tokens);
+    final EncoderOutput encoded = await _models.encode(tokens: tokens, speaker: settings.speaker);
     final List<int> durations = _REGULATOR.durations(logDurations: encoded.logDurations, lengthScale: settings.lengthScale);
     final int frames = durations.fold<int>(0, (int sum, int value) => sum + value);
     final Float32List aligned = _REGULATOR.expand(
@@ -139,6 +155,7 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
       noise: _gaussianNoise(length: aligned.length),
       flowSteps: settings.flowSteps,
       cfgStrength: settings.cfgStrength,
+      speaker: settings.speaker,
       isCancelled: () => _isStopRequested,
     );
     final Uint8List wav = await renderWavInIsolate(spectrum: spectrum);
@@ -168,6 +185,31 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
 /// ဖမ်းမိနိုင်ပြီး isolate သို့ ပို့၍ မရသောကြောင့် ဖြစ်သည်။
 Future<Uint8List> renderWavInIsolate({required StftSpectrum spectrum}) =>
     Isolate.run(() => renderWav(spectrum: spectrum));
+
+/// အသံသွင်း reference ကို 44.1 kHz သို့ ပြောင်းပြီး magnitude STFT တွက်သည် (FFT ရာချီ — UI မထစ်စေရန် isolate)။
+Future<({Float32List magnitude, int frames})> analyzeReferenceInIsolate({
+  required Float32List waveform,
+  required int sampleRate,
+}) =>
+    Isolate.run(() => MagnitudeStft(fftSize: MyanmarTtsConfig.FFT_SIZE, hopLength: MyanmarTtsConfig.HOP_LENGTH)
+        .analyze(waveform: resampleLinear(waveform: waveform, from: sampleRate, to: MyanmarTtsConfig.SAMPLE_RATE)));
+
+/// Linear interpolation resample — mic က 44.1 kHz မပေးနိုင်သော ဖုန်းအတွက်သာ။ Reference encoder သည် mel
+/// (ကြမ်းသော frequency band) ကိုသာ ကြည့်သဖြင့် high-quality resampler မလိုပါ။
+Float32List resampleLinear({required Float32List waveform, required int from, required int to}) {
+  if (from == to || waveform.isEmpty) return waveform;
+  final int length = (waveform.length * to / from).floor();
+  final Float32List output = Float32List(length);
+  final double step = from / to;
+  for (int index = 0; index < length; index++) {
+    final double position = index * step;
+    final int left = position.floor();
+    final int right = (left + 1).clamp(0, waveform.length - 1);
+    final double fraction = position - left;
+    output[index] = waveform[left] * (1 - fraction) + waveform[right] * fraction;
+  }
+  return output;
+}
 
 Uint8List renderWav({required StftSpectrum spectrum}) {
   final InverseStft inverse =

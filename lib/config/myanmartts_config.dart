@@ -3,10 +3,26 @@
 abstract final class MyanmarTtsConfig {
   /// `flutter_onnxruntime` သည် asset ကို temp folder သို့ ဖိုင်အမည်ဖြင့် cache လုပ်သည်။
   /// Model ပြောင်းလျှင် အဟောင်းကို ဆက်မသုံးမိစေရန် ဖိုင်အမည်တွင် version ထည့်ထားသည် — model ပြောင်းတိုင်း တိုးရန်။
-  static const String ENCODER_ASSET = 'assets/models/myanmartts_v1_encoder.onnx';
+  /// v2: speaker embedding သည် input ဖြစ်လာ၍ အသံပြောင်းနိုင်သည် (ADR 0003)။ prenet/vocos မပြောင်း၍ v1 ဆက်သုံးသည်။
+  static const String ENCODER_ASSET = 'assets/models/myanmartts_v2_encoder.onnx';
   static const String PRENET_ASSET = 'assets/models/myanmartts_v1_prenet.onnx';
-  static const String ESTIMATOR_ASSET = 'assets/models/myanmartts_v1_estimator.onnx';
+  static const String ESTIMATOR_ASSET = 'assets/models/myanmartts_v2_estimator.onnx';
   static const String VOCODER_ASSET = 'assets/models/myanmartts_v1_vocos.onnx';
+
+  /// အသံသွင်းထားသော clip ၏ magnitude STFT → speaker embedding (mel filterbank + reference encoder)။
+  static const String REFERENCE_ASSET = 'assets/models/myanmartts_v1_reference.onnx';
+
+  /// Preset အသံ လက်ဗွေများ — tools/myanmartts_onnx/voice_presets.py ဖြင့် ထုတ်ထားသည်။ ပထမ preset သည် ပုံသေ အသံ။
+  static const String VOICE_PRESETS_ASSET = 'assets/voices/presets.json';
+
+  /// အသုံးပြုသူ အသံသွင်းထားသော အသံများကို app support directory တွင် သိမ်းသည့် ဖိုင်။
+  static const String CUSTOM_VOICES_FILE = 'custom_voices.json';
+  static const int SPEAKER_EMBEDDING_SIZE = 256;
+
+  /// Reference encoder အတွက် အသံသွင်းချိန် — model card အရ ၅–၁၀ စက္ကန့် သင့်တော်သည်။
+  static const Duration MIN_RECORDING = Duration(seconds: 5);
+  static const Duration MAX_RECORDING = Duration(seconds: 15);
+  static const int RECORDING_CHANNELS = 1;
 
   static const int SAMPLE_RATE = 44100;
   static const int MEL_CHANNELS = 128;

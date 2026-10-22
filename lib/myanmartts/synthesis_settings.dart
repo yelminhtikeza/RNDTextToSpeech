@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import '../config/myanmartts_config.dart';
 
 /// MyanmarTTS တစ်ကြိမ်ဖတ်ရာတွင် သုံးမည့် ချိန်ညှိချက်များ — controller → speaker → model သို့ တစ်စုတည်း ပို့ရန်။
 class SynthesisSettings {
   const SynthesisSettings({
     required this.lengthScale,
+    required this.speaker,
     this.flowSteps = MyanmarTtsConfig.FLOW_STEPS_DEFAULT,
     this.cfgStrength = MyanmarTtsConfig.CFG_STRENGTH_DEFAULT,
   });
@@ -17,4 +20,7 @@ class SynthesisSettings {
   /// Classifier-free guidance — စာနှင့် reference အသံကို မည်မျှ တင်းကျပ်စွာ လိုက်မည်နည်း။
   /// 1.0 = guidance မရှိ၊ ~3 = မျှတ၊ မြင့်လွန်းလျှင် အသံ တင်းမာ/သတ္တုသံ ဖြစ်နိုင်။
   final double cfgStrength;
+
+  /// ရွေးထားသော အသံ၏ လက်ဗွေ (speaker embedding၊ [MyanmarTtsConfig.SPEAKER_EMBEDDING_SIZE] ခု)။
+  final Float32List speaker;
 }

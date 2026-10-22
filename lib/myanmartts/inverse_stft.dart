@@ -1,29 +1,19 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
+
+import 'fft.dart';
 
 /// Vocos ၏ "same" padding ISTFT (`vocoders/vocos/models/head.py`) ကို Dart သို့ ပြောင်းထားခြင်း။
 /// ONNX graph ထဲတွင် မထည့်ခြင်းမှာ `irfft` နှင့် `fold` သည် ONNX သို့ ယုံကြည်စိတ်ချစွာ export မရ၍
 /// DFT matrix ဖြင့် အစားထိုးပါက model ကို ~32 MB ကြီးစေသောကြောင့် ဖြစ်သည်။
 class InverseStft {
   InverseStft({required this.fftSize, required this.hopLength})
-      : assert(fftSize > 0 && fftSize & (fftSize - 1) == 0, 'fftSize must be a power of two'),
-        _window = _periodicHann(size: fftSize),
-        _cosTable = Float64List(fftSize ~/ 2),
-        _sinTable = Float64List(fftSize ~/ 2),
-        _bitReversed = _bitReversalTable(size: fftSize) {
-    for (int index = 0; index < fftSize ~/ 2; index++) {
-      final double angle = 2 * math.pi * index / fftSize;
-      _cosTable[index] = math.cos(angle);
-      _sinTable[index] = math.sin(angle);
-    }
-  }
+      : _fft = Fft(size: fftSize),
+        _window = Fft.periodicHann(size: fftSize);
 
   final int fftSize;
   final int hopLength;
+  final Fft _fft;
   final Float64List _window;
-  final Float64List _cosTable;
-  final Float64List _sinTable;
-  final Int32List _bitReversed;
 
   int get binCount => fftSize ~/ 2 + 1;
 
@@ -37,7 +27,8 @@ class InverseStft {
 
     for (int frame = 0; frame < frames; frame++) {
       _loadHermitianSpectrum(real: real, imag: imag, frame: frame, frames: frames, outReal: frameReal, outImag: frameImag);
-      _inverseFft(real: frameReal, imag: frameImag);
+      // Hermitian input ဖြစ်သဖြင့် ရလဒ်သည် real ဘက်တွင်သာ ရှိသည်။
+      _fft.inverse(real: frameReal, imag: frameImag);
       final int offset = frame * hopLength;
       for (int sample = 0; sample < fftSize; sample++) {
         final double window = _window[sample];
@@ -73,60 +64,5 @@ class InverseStft {
       outReal[fftSize - bin] = outReal[bin];
       outImag[fftSize - bin] = -outImag[bin];
     }
-  }
-
-  /// In-place radix-2 inverse FFT (1/N scaling ပါ)။ Hermitian input ဖြစ်သဖြင့် ရလဒ်သည် [real] တွင်သာ ရှိသည်။
-  void _inverseFft({required Float64List real, required Float64List imag}) {
-    for (int index = 0; index < fftSize; index++) {
-      final int swapWith = _bitReversed[index];
-      if (swapWith > index) {
-        final double tempReal = real[index];
-        real[index] = real[swapWith];
-        real[swapWith] = tempReal;
-        final double tempImag = imag[index];
-        imag[index] = imag[swapWith];
-        imag[swapWith] = tempImag;
-      }
-    }
-    for (int size = 2; size <= fftSize; size <<= 1) {
-      final int halfSize = size >> 1;
-      final int tableStep = fftSize ~/ size;
-      for (int start = 0; start < fftSize; start += size) {
-        for (int offset = 0; offset < halfSize; offset++) {
-          // Inverse transform ဖြစ်သဖြင့် twiddle သည် e^{+i·angle}
-          final double twiddleReal = _cosTable[offset * tableStep];
-          final double twiddleImag = _sinTable[offset * tableStep];
-          final int even = start + offset;
-          final int odd = even + halfSize;
-          final double oddReal = real[odd] * twiddleReal - imag[odd] * twiddleImag;
-          final double oddImag = real[odd] * twiddleImag + imag[odd] * twiddleReal;
-          real[odd] = real[even] - oddReal;
-          imag[odd] = imag[even] - oddImag;
-          real[even] += oddReal;
-          imag[even] += oddImag;
-        }
-      }
-    }
-    for (int index = 0; index < fftSize; index++) {
-      real[index] /= fftSize;
-    }
-  }
-
-  /// torch `hann_window(periodic=True)` နှင့် တူသည်။
-  static Float64List _periodicHann({required int size}) => Float64List.fromList(<double>[
-        for (int index = 0; index < size; index++) 0.5 - 0.5 * math.cos(2 * math.pi * index / size),
-      ]);
-
-  static Int32List _bitReversalTable({required int size}) {
-    final int bits = size.bitLength - 1;
-    final Int32List table = Int32List(size);
-    for (int index = 0; index < size; index++) {
-      int reversed = 0;
-      for (int bit = 0; bit < bits; bit++) {
-        reversed = (reversed << 1) | ((index >> bit) & 1);
-      }
-      table[index] = reversed;
-    }
-    return table;
   }
 }

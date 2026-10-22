@@ -4,13 +4,16 @@ import 'dart:typed_data';
 
 import 'package:flutter_onnxruntime/flutter_onnxruntime.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:rnd_text_to_speech/config/myanmartts_config.dart';
 import 'package:rnd_text_to_speech/myanmartts/burmese_tokenizer.dart';
 import 'package:rnd_text_to_speech/myanmartts/inverse_stft.dart';
 import 'package:rnd_text_to_speech/myanmartts/length_regulator.dart';
+import 'package:rnd_text_to_speech/myanmartts/magnitude_stft.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/myanmartts/onnx_myanmar_tts_models.dart';
+import 'package:rnd_text_to_speech/services/file_voice_library.dart';
 
 /// Bundled model အစစ်နှင့် ONNX Runtime plugin အစစ်ဖြင့် pipeline တစ်ခုလုံးကို run သည်။
 ///
@@ -21,8 +24,9 @@ import 'package:rnd_text_to_speech/myanmartts/onnx_myanmar_tts_models.dart';
 const String _SAMPLE_TEXT = 'မင်္ဂလာပါ။ မြန်မာစာကို အသံဖြင့် ဖတ်ပြနေပါသည်။';
 const String _PARITY_DIR = String.fromEnvironment('MYANMARTTS_PARITY_DIR');
 
-/// tools/myanmartts_onnx ၏ Python pipeline (bundled int8 encoder) က ဤစာကြောင်းအတွက် ခန့်မှန်းသော frame အရေအတွက်။
-const int _EXPECTED_FRAMES = 423;
+/// tools/myanmartts_onnx ၏ Python pipeline (bundled v2 int8 encoder + "original" preset) က ဤစာကြောင်းအတွက်
+/// ခန့်မှန်းသော frame အရေအတွက် (v1 တွင် 423 — ADR 0003 ကြည့်)။
+const int _EXPECTED_FRAMES = 422;
 /// Waveform correlation အနိမ့်ဆုံး — sample တစ်ခုချင်း နှိုင်းယှဉ်ခြင်းကို မသုံးခြင်းမှာ plugin ၏ ORT 1.28 နှင့်
 /// Python ORT 1.23 ၏ int8 kernel များ rounding မတူ၍ phase အနည်းငယ် ကွဲသောကြောင့် ဖြစ်သည်။
 /// တိုင်းထားချက် (2026-10-22): int8 correlation 0.954 (spectral 0.993)၊ fp32 max diff 4e-4။
@@ -30,10 +34,14 @@ const int _EXPECTED_FRAMES = 423;
 const double _MIN_PARITY_CORRELATION = 0.9;
 const double _MIN_RMS = 0.01;
 
+/// Python ဖြင့် တိုင်းထားချက် — preset ၈ ခုတွင် 0.73–0.98၊ မူလအသံတွင် ~0.98။
+const double _MIN_VOICE_SIMILARITY = 0.9;
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   late OnnxMyanmarTtsModels models;
+  late Float32List originalVoice;
   const BurmeseTokenizer tokenizer = BurmeseTokenizer();
   const LengthRegulator regulator = LengthRegulator();
 
@@ -41,6 +49,8 @@ void main() {
     models = OnnxMyanmarTtsModels(onnxRuntime: OnnxRuntime());
     final Stopwatch stopwatch = Stopwatch()..start();
     await models.load();
+    // Bundled presets.json ၏ ပထမ (မူလ) အသံ — app ၏ ပုံသေအသံ နှင့် တူသည်။
+    originalVoice = (await FileVoiceLibrary(bundle: rootBundle).loadPresets()).first.embedding;
     // ignore: avoid_print
     print('myanmartts load: ${stopwatch.elapsedMilliseconds} ms');
   });
@@ -49,7 +59,8 @@ void main() {
 
   Future<({Float32List audio, int frames, Duration elapsed})> synthesize({required Float32List Function(int) noise}) async {
     final Stopwatch stopwatch = Stopwatch()..start();
-    final EncoderOutput encoded = await models.encode(tokens: tokenizer.tokenize(text: _SAMPLE_TEXT));
+    final EncoderOutput encoded =
+        await models.encode(tokens: tokenizer.tokenize(text: _SAMPLE_TEXT), speaker: originalVoice);
     final List<int> durations = regulator.durations(logDurations: encoded.logDurations, lengthScale: 1.0);
     final int frames = durations.fold<int>(0, (int sum, int value) => sum + value);
     final Float32List aligned =
@@ -60,6 +71,7 @@ void main() {
       noise: noise(aligned.length),
       flowSteps: MyanmarTtsConfig.FLOW_STEPS_DEFAULT,
       cfgStrength: MyanmarTtsConfig.CFG_STRENGTH_DEFAULT,
+      speaker: originalVoice,
       isCancelled: () => false,
     );
     final Float32List audio = InverseStft(fftSize: MyanmarTtsConfig.FFT_SIZE, hopLength: MyanmarTtsConfig.HOP_LENGTH)
@@ -86,6 +98,16 @@ void main() {
     expect(result.audio.length, _EXPECTED_FRAMES * MyanmarTtsConfig.HOP_LENGTH);
     expect(result.audio.every((double v) => v.isFinite), isTrue);
     expect(rms, greaterThan(_MIN_RMS));
+
+    // အသံသွင်း လမ်းကြောင်း (Dart STFT + reference.onnx) — ထုတ်ထားသောအသံ၏ လက်ဗွေသည် မူလအသံနှင့် တူရမည်။
+    final ({Float32List magnitude, int frames}) spectrum =
+        MagnitudeStft(fftSize: MyanmarTtsConfig.FFT_SIZE, hopLength: MyanmarTtsConfig.HOP_LENGTH)
+            .analyze(waveform: result.audio);
+    final Float32List embedding = await models.embedSpeaker(magnitude: spectrum.magnitude, frames: spectrum.frames);
+    final double similarity = _cosine(embedding, originalVoice);
+    // ignore: avoid_print
+    print('myanmartts voice: generated-speech fingerprint similarity to its voice = ${similarity.toStringAsFixed(3)}');
+    expect(similarity, greaterThan(_MIN_VOICE_SIMILARITY));
   });
 
   testWidgets('matches the Python ONNX pipeline given the same noise', (WidgetTester tester) async {
@@ -117,4 +139,14 @@ double _pearson(Float32List a, Float32List b) {
     varianceB += db * db;
   }
   return covariance / math.sqrt(varianceA * varianceB);
+}
+
+double _cosine(Float32List a, Float32List b) {
+  double dot = 0, normA = 0, normB = 0;
+  for (int index = 0; index < a.length; index++) {
+    dot += a[index] * b[index];
+    normA += a[index] * a[index];
+    normB += b[index] * b[index];
+  }
+  return dot / math.sqrt(normA * normB);
 }
