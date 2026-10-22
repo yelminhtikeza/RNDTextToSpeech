@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:rnd_text_to_speech/myanmartts/burmese_tokenizer.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_speaker.dart';
+import 'package:rnd_text_to_speech/myanmartts/synthesis_settings.dart';
 
 /// Controller test များအတွက် ONNX/audio မလိုသော speaker fake။
 class FakeOnDeviceSpeaker implements OnDeviceSpeaker {
@@ -14,7 +15,7 @@ class FakeOnDeviceSpeaker implements OnDeviceSpeaker {
 
   int loadCallCount = 0;
   String? spokenText;
-  double? lengthScale;
+  SynthesisSettings? settings;
   int stopCallCount = 0;
 
   /// အဆုံးထိ ဖတ်ပြီးချိန်တွင် ပြန်ပေးမည့် အသံ။
@@ -34,11 +35,11 @@ class FakeOnDeviceSpeaker implements OnDeviceSpeaker {
   bool hasSpeakableText({required String text}) => const BurmeseTokenizer().hasSpeakableText(text: text);
 
   @override
-  Future<Uint8List?> speak({required String text, required double lengthScale}) async {
+  Future<Uint8List?> speak({required String text, required SynthesisSettings settings}) async {
     if (speakError case final MyanmarTtsException error) throw error;
     _wasStopped = false;
     spokenText = text;
-    this.lengthScale = lengthScale;
+    this.settings = settings;
     await pendingSpeak?.future;
     return _wasStopped ? null : spokenAudio;
   }

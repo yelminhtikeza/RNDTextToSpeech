@@ -1,3 +1,4 @@
+import '../config/myanmartts_config.dart';
 import '../config/tts_config.dart';
 
 enum SpeechStatus {
@@ -38,6 +39,8 @@ class BurmeseSpeechState {
     this.selectedEngine,
     this.speechRate = TtsConfig.SPEECH_RATE_DEFAULT,
     this.pitch = TtsConfig.PITCH_DEFAULT,
+    this.flowSteps = MyanmarTtsConfig.FLOW_STEPS_DEFAULT,
+    this.cfgStrength = MyanmarTtsConfig.CFG_STRENGTH_DEFAULT,
     this.maxInputLength = TtsConfig.MAX_INPUT_LENGTH_FALLBACK,
     this.hasDownloadableAudio = false,
     this.isSavingAudio = false,
@@ -54,6 +57,10 @@ class BurmeseSpeechState {
   final String? selectedEngine;
   final double speechRate;
   final double pitch;
+
+  /// MyanmarTTS သီးသန့် — အသံအရည်အသွေးနှင့် အမြန်နှုန်း ချိန်ခွင်လျှာ။
+  final int flowSteps;
+  final double cfgStrength;
   final int maxInputLength;
 
   /// နောက်ဆုံး အဆုံးထိ ဖတ်ခဲ့သော MyanmarTTS အသံ ရှိ/မရှိ — စာပြင်လျှင်၊ engine ပြောင်းလျှင် ရှင်းသည်။
@@ -73,6 +80,9 @@ class BurmeseSpeechState {
   /// MyanmarTTS model တွင် pitch ထိန်းချုပ်မှု မပါသဖြင့် Android engine တွင်သာ ရသည်။
   bool get supportsPitch => !isOnDeviceSelected;
 
+  /// Step နှင့် CFG သည် MyanmarTTS model ၏ ချိန်ညှိချက်ဖြစ်၍ Android engine တွင် မရှိ။
+  bool get supportsQualityControls => isOnDeviceSelected;
+
   /// ထုတ်ထားသော အသံကို MyanmarTTS တွင်သာ ရနိုင်သည် — Android engine များ၏ ဖိုင်ထုတ်မှု မယုံကြည်ရ၍ (third-party)။
   bool get supportsDownload => isOnDeviceSelected;
 
@@ -87,6 +97,8 @@ class BurmeseSpeechState {
     String? selectedEngine,
     double? speechRate,
     double? pitch,
+    int? flowSteps,
+    double? cfgStrength,
     int? maxInputLength,
     bool? hasDownloadableAudio,
     bool? isSavingAudio,
@@ -98,6 +110,8 @@ class BurmeseSpeechState {
       selectedEngine: selectedEngine ?? this.selectedEngine,
       speechRate: speechRate ?? this.speechRate,
       pitch: pitch ?? this.pitch,
+      flowSteps: flowSteps ?? this.flowSteps,
+      cfgStrength: cfgStrength ?? this.cfgStrength,
       maxInputLength: maxInputLength ?? this.maxInputLength,
       hasDownloadableAudio: hasDownloadableAudio ?? this.hasDownloadableAudio,
       isSavingAudio: isSavingAudio ?? this.isSavingAudio,
@@ -115,6 +129,8 @@ class BurmeseSpeechState {
       selectedEngine: selectedEngine,
       speechRate: speechRate,
       pitch: pitch,
+      flowSteps: flowSteps,
+      cfgStrength: cfgStrength,
       maxInputLength: maxInputLength,
       hasDownloadableAudio: hasDownloadableAudio,
       isSavingAudio: isSavingAudio,

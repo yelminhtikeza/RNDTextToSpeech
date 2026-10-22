@@ -10,6 +10,7 @@ import 'burmese_tokenizer.dart';
 import 'inverse_stft.dart';
 import 'length_regulator.dart';
 import 'myanmar_tts_models.dart';
+import 'synthesis_settings.dart';
 import 'text_chunker.dart';
 import 'wav_encoder.dart';
 
@@ -22,10 +23,9 @@ abstract interface class OnDeviceSpeaker {
   bool hasSpeakableText({required String text});
 
   /// ဖတ်ပြီးဆုံးသည် သို့မဟုတ် [stop] ခေါ်သည်အထိ စောင့်သည်။
-  /// [lengthScale] 1.0 = ပုံမှန်၊ ငယ်လေ မြန်လေ။
   /// အဆုံးထိ ဖတ်ပြီးပါက ကြားခဲ့သော အသံအားလုံးကို WAV တစ်ဖိုင်အဖြစ် ပြန်ပေးသည် (download အတွက်)၊
   /// ရပ်လိုက်ပါက အပိုင်းလိုက်သာ ရှိ၍ null ပြန်ပေးသည်။
-  Future<Uint8List?> speak({required String text, required double lengthScale});
+  Future<Uint8List?> speak({required String text, required SynthesisSettings settings});
 
   Future<void> stop();
 
@@ -66,7 +66,7 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
   bool hasSpeakableText({required String text}) => _TOKENIZER.hasSpeakableText(text: text);
 
   @override
-  Future<Uint8List?> speak({required String text, required double lengthScale}) async {
+  Future<Uint8List?> speak({required String text, required SynthesisSettings settings}) async {
     await load();
     _isStopRequested = false;
     final List<String> chunks =
@@ -75,12 +75,12 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
     final List<Uint8List> played = <Uint8List>[];
 
     // အပိုင်း i ဖွင့်နေစဉ် အပိုင်း i+1 ကို ကြိုထုတ်ထားသဖြင့် ဝါကျကြား တိတ်ဆိတ်ချိန် မရှိသလောက် ဖြစ်သည်။
-    Future<Uint8List>? pending = _synthesize(text: chunks.first, lengthScale: lengthScale);
+    Future<Uint8List>? pending = _synthesize(text: chunks.first, settings: settings);
     try {
       for (int index = 0; index < chunks.length; index++) {
         final Uint8List wav = await pending!;
         pending = index + 1 < chunks.length
-            ? _synthesize(text: chunks[index + 1], lengthScale: lengthScale)
+            ? _synthesize(text: chunks[index + 1], settings: settings)
             : null;
         if (_isStopRequested) return null;
         await _audioOutput.playWav(wav: wav);
@@ -108,11 +108,11 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
     await _models.dispose();
   }
 
-  Future<Uint8List> _synthesize({required String text, required double lengthScale}) async {
+  Future<Uint8List> _synthesize({required String text, required SynthesisSettings settings}) async {
     final Stopwatch stopwatch = Stopwatch()..start();
     final Int64List tokens = _TOKENIZER.tokenize(text: text);
     final EncoderOutput encoded = await _models.encode(tokens: tokens);
-    final List<int> durations = _REGULATOR.durations(logDurations: encoded.logDurations, lengthScale: lengthScale);
+    final List<int> durations = _REGULATOR.durations(logDurations: encoded.logDurations, lengthScale: settings.lengthScale);
     final int frames = durations.fold<int>(0, (int sum, int value) => sum + value);
     final Float32List aligned = _REGULATOR.expand(
       features: encoded.features,
@@ -123,11 +123,14 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
       alignedFeatures: aligned,
       frames: frames,
       noise: _gaussianNoise(length: aligned.length),
+      flowSteps: settings.flowSteps,
+      cfgStrength: settings.cfgStrength,
       isCancelled: () => _isStopRequested,
     );
     final Uint8List wav = await renderWavInIsolate(spectrum: spectrum);
     developer.log(
-      'action=synthesize characters=${text.length} frames=$frames elapsed_ms=${stopwatch.elapsedMilliseconds}',
+      'action=synthesize characters=${text.length} frames=$frames steps=${settings.flowSteps} '
+      'cfg=${settings.cfgStrength} elapsed_ms=${stopwatch.elapsedMilliseconds}',
       name: _LOG_NAME,
     );
     return wav;

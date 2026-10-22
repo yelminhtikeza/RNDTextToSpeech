@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_theme.dart';
+import '../config/myanmartts_config.dart';
 import '../config/tts_config.dart';
 import '../l10n/app_localizations.dart';
 import '../models/audio_save_result.dart';
@@ -63,23 +64,6 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
                 errorText: _inputErrorText(l10n: l10n, speechState: speechState),
               ),
             ),
-            _LabeledSlider(
-              label: l10n.speechRateLabel,
-              value: speechState.speechRate,
-              min: TtsConfig.SPEECH_RATE_MIN,
-              max: TtsConfig.SPEECH_RATE_MAX,
-              onChanged: (double rate) => controller.updateSpeechRate(rate: rate),
-            ),
-            _LabeledSlider(
-              label: l10n.pitchLabel,
-              value: speechState.pitch,
-              min: TtsConfig.PITCH_MIN,
-              max: TtsConfig.PITCH_MAX,
-              // MyanmarTTS model တွင် pitch ထိန်းချုပ်မှု မပါသဖြင့် slider ကို ပိတ်ပြီး အကြောင်းရင်း ပြသည်။
-              onChanged: speechState.supportsPitch ? (double pitch) => controller.updatePitch(pitch: pitch) : null,
-            ),
-            if (!speechState.supportsPitch)
-              Text(l10n.pitchNotSupported, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: AppTheme.SPACING),
             Row(
               children: <Widget>[
@@ -115,6 +99,50 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
               ),
               if (!speechState.hasDownloadableAudio)
                 Text(l10n.downloadHint, style: Theme.of(context).textTheme.bodySmall),
+            ],
+            const SizedBox(height: AppTheme.SPACING),
+            _LabeledSlider(
+              label: l10n.speechRateLabel,
+              value: speechState.speechRate,
+              min: TtsConfig.SPEECH_RATE_MIN,
+              max: TtsConfig.SPEECH_RATE_MAX,
+              onChanged: (double rate) => controller.updateSpeechRate(rate: rate),
+            ),
+            _LabeledSlider(
+              label: l10n.pitchLabel,
+              value: speechState.pitch,
+              min: TtsConfig.PITCH_MIN,
+              max: TtsConfig.PITCH_MAX,
+              // MyanmarTTS model တွင် pitch ထိန်းချုပ်မှု မပါသဖြင့် slider ကို ပိတ်ပြီး အကြောင်းရင်း ပြသည်။
+              onChanged: speechState.supportsPitch ? (double pitch) => controller.updatePitch(pitch: pitch) : null,
+            ),
+            if (!speechState.supportsPitch)
+              Text(l10n.pitchNotSupported, style: Theme.of(context).textTheme.bodySmall),
+            if (speechState.supportsQualityControls) ...<Widget>[
+              _LabeledSlider(
+                label: l10n.flowStepsLabel,
+                value: speechState.flowSteps.toDouble(),
+                min: MyanmarTtsConfig.FLOW_STEPS_MIN.toDouble(),
+                max: MyanmarTtsConfig.FLOW_STEPS_MAX.toDouble(),
+                divisions: MyanmarTtsConfig.FLOW_STEPS_SLIDER_DIVISIONS,
+                valueLabel: speechState.flowSteps.toString(),
+                onChanged: speechState.isSpeaking
+                    ? null
+                    : (double steps) => controller.updateFlowSteps(steps: steps.round()),
+              ),
+              Text(l10n.flowStepsHint, style: Theme.of(context).textTheme.bodySmall),
+              _LabeledSlider(
+                label: l10n.cfgLabel,
+                value: speechState.cfgStrength,
+                min: MyanmarTtsConfig.CFG_STRENGTH_MIN,
+                max: MyanmarTtsConfig.CFG_STRENGTH_MAX,
+                divisions: MyanmarTtsConfig.CFG_SLIDER_DIVISIONS,
+                valueLabel: speechState.cfgStrength.toStringAsFixed(1),
+                onChanged: speechState.isSpeaking
+                    ? null
+                    : (double cfgStrength) => controller.updateCfgStrength(cfgStrength: cfgStrength),
+              ),
+              Text(l10n.cfgHint, style: Theme.of(context).textTheme.bodySmall),
             ],
           ],
         ),
@@ -175,6 +203,8 @@ class _EngineStatusSection extends StatelessWidget {
           // Engine စာရင်း ပြန်ရှာသည့်အခါ ရွေးထားချက်အသစ်ကို ပြရန် widget ကို ပြန်တည်ဆောက်သည်။
           key: ValueKey<String>('${speechState.engines.join()}|${speechState.selectedEngine}'),
           initialValue: speechState.selectedEngine,
+          // Third-party engine package name ရှည်နိုင်သဖြင့် ဖုန်းအကျယ်တွင် overflow မဖြစ်စေရန် ဖြတ်ပြသည်။
+          isExpanded: true,
           decoration: InputDecoration(
             labelText: l10n.engineLabel,
             border: const OutlineInputBorder(),
@@ -182,7 +212,10 @@ class _EngineStatusSection extends StatelessWidget {
           items: speechState.engines
               .map((String engine) => DropdownMenuItem<String>(
                     value: engine,
-                    child: Text(engine == TtsConfig.ON_DEVICE_ENGINE_ID ? l10n.engineOnDevice : engine),
+                    child: Text(
+                      engine == TtsConfig.ON_DEVICE_ENGINE_ID ? l10n.engineOnDevice : engine,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ))
               .toList(),
           onChanged: speechState.canChooseEngine
@@ -270,17 +303,25 @@ class _LabeledSlider extends StatelessWidget {
     required this.min,
     required this.max,
     required this.onChanged,
+    this.divisions = TtsConfig.SLIDER_DIVISIONS,
+    this.valueLabel,
   });
 
   final String label;
   final double value;
   final double min;
   final double max;
+  final int divisions;
+
+  /// လက်ရှိတန်ဖိုးကို ပြရန် — မပေးပါက ဒဿမ ၂ နေရာဖြင့် ပြသည်။
+  final String? valueLabel;
+
   /// null ဖြစ်လျှင် disabled။
   final ValueChanged<double>? onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final String displayValue = valueLabel ?? value.toStringAsFixed(2);
     return Row(
       children: <Widget>[
         Expanded(child: Text(label)),
@@ -290,11 +331,12 @@ class _LabeledSlider extends StatelessWidget {
             value: value,
             min: min,
             max: max,
-            divisions: TtsConfig.SLIDER_DIVISIONS,
-            label: value.toStringAsFixed(2),
+            divisions: divisions,
+            label: displayValue,
             onChanged: onChanged,
           ),
         ),
+        SizedBox(width: AppTheme.SLIDER_VALUE_WIDTH, child: Text(displayValue, textAlign: TextAlign.end)),
       ],
     );
   }

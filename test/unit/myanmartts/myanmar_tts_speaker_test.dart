@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:rnd_text_to_speech/config/myanmartts_config.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_speaker.dart';
+import 'package:rnd_text_to_speech/myanmartts/synthesis_settings.dart';
 import 'package:rnd_text_to_speech/services/audio_output.dart';
 
 const int _BINS = MyanmarTtsConfig.FFT_SIZE ~/ 2 + 1;
@@ -22,6 +23,7 @@ class _FakeModels implements MyanmarTtsModels {
   final List<int> encodedTokenCounts = <int>[];
   final List<int> spectrumFrames = <int>[];
   final List<int> noiseLengths = <int>[];
+  final List<(int, double)> stepsAndCfg = <(int, double)>[];
   Completer<void>? holdSpectrum;
 
   @override
@@ -47,9 +49,12 @@ class _FakeModels implements MyanmarTtsModels {
     required Float32List alignedFeatures,
     required int frames,
     required Float32List noise,
+    required int flowSteps,
+    required double cfgStrength,
     required bool Function() isCancelled,
   }) async {
     spectrumFrames.add(frames);
+    stepsAndCfg.add((flowSteps, cfgStrength));
     noiseLengths.add(noise.length);
     await holdSpectrum?.future;
     if (isCancelled()) throw const SynthesisCancelledException();
@@ -103,7 +108,7 @@ void main() {
   });
 
   test('synthesizes one chunk into a playable 44.1 kHz WAV', () async {
-    final Uint8List? downloadable = await speaker.speak(text: 'ကခ', lengthScale: 1.0);
+    final Uint8List? downloadable = await speaker.speak(text: 'ကခ', settings: const SynthesisSettings(lengthScale: 1.0));
 
     // "ကခ" -> blank,က,blank,ခ,blank = 5 tokens × 2 frames
     expect(models.encodedTokenCounts, <int>[5]);
@@ -117,13 +122,26 @@ void main() {
     expect(downloadable, audio.played.single);
   });
 
+  test('forwards steps and CFG to the model for every chunk', () async {
+    await speaker.speak(
+      text: 'က။ ခ။',
+      settings: const SynthesisSettings(lengthScale: 1.0, flowSteps: 8, cfgStrength: 4.5),
+    );
+    expect(models.stepsAndCfg, <(int, double)>[(8, 4.5), (8, 4.5)]);
+  });
+
+  test('uses the chosen defaults when steps and CFG are not given', () async {
+    await speaker.speak(text: 'က', settings: const SynthesisSettings(lengthScale: 1.0));
+    expect(models.stepsAndCfg.single, (MyanmarTtsConfig.FLOW_STEPS_DEFAULT, MyanmarTtsConfig.CFG_STRENGTH_DEFAULT));
+  });
+
   test('length scale changes the number of frames', () async {
-    await speaker.speak(text: 'ကခ', lengthScale: 0.5);
+    await speaker.speak(text: 'ကခ', settings: const SynthesisSettings(lengthScale: 0.5));
     expect(models.spectrumFrames, <int>[5]);
   });
 
   test('plays each sentence in order and skips chunks with nothing to say', () async {
-    final Uint8List? downloadable = await speaker.speak(text: 'က။ hello။ ခဂ။', lengthScale: 1.0);
+    final Uint8List? downloadable = await speaker.speak(text: 'က။ hello။ ခဂ။', settings: const SynthesisSettings(lengthScale: 1.0));
 
     expect(models.encodedTokenCounts, <int>[5, 7]);
     expect(audio.played, hasLength(2));
@@ -134,7 +152,7 @@ void main() {
 
   test('synthesizes the next sentence while the current one plays', () async {
     audio.holdPlayback = Completer<void>();
-    final Future<void> speaking = speaker.speak(text: 'က။ ခ။', lengthScale: 1.0);
+    final Future<void> speaking = speaker.speak(text: 'က။ ခ။', settings: const SynthesisSettings(lengthScale: 1.0));
     await _waitUntil(() => audio.played.isNotEmpty && models.spectrumFrames.length == 2);
 
     expect(audio.played, hasLength(1));
@@ -148,7 +166,7 @@ void main() {
 
   test('stop during synthesis cancels without playing or throwing', () async {
     models.holdSpectrum = Completer<void>();
-    final Future<void> speaking = speaker.speak(text: 'က', lengthScale: 1.0);
+    final Future<void> speaking = speaker.speak(text: 'က', settings: const SynthesisSettings(lengthScale: 1.0));
     await _waitUntil(() => models.spectrumFrames.isNotEmpty);
 
     await speaker.stop();
@@ -160,7 +178,7 @@ void main() {
 
   test('stop during playback does not start the next sentence', () async {
     audio.holdPlayback = Completer<void>();
-    final Future<Uint8List?> speaking = speaker.speak(text: 'က။ ခ။ ဂ။', lengthScale: 1.0);
+    final Future<Uint8List?> speaking = speaker.speak(text: 'က။ ခ။ ဂ။', settings: const SynthesisSettings(lengthScale: 1.0));
     await _waitUntil(() => audio.played.isNotEmpty);
 
     await speaker.stop();

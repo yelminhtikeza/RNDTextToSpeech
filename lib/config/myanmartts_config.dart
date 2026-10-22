@@ -13,10 +13,18 @@ abstract final class MyanmarTtsConfig {
   static const int FFT_SIZE = 2048;
   static const int HOP_LENGTH = 512;
 
-  /// Flow-matching Euler step အရေအတွက် — နားထောင်စမ်းသပ်ပြီး 16 ကို ရွေးထားသည်
-  /// (docs/myanmartts-onnx/listening ရှိ ဖိုင် 5)။ 8 သည် ၂ ဆမြန်သော်လည်း အရည်အသွေး ကျသည်။
-  static const int FLOW_STEPS = 16;
-  static const double CFG_STRENGTH = 3.0;
+  /// Flow-matching Euler step — ပုံသေ 16 ကို နားထောင်စမ်းသပ်ပြီး ရွေးထားသည်
+  /// (docs/myanmartts-onnx/listening ရှိ ဖိုင် 5)။ Slider အပိုင်းအခြားနှင့် အဆင့် (4) သည် HF Space အတိုင်း။
+  static const int FLOW_STEPS_DEFAULT = 16;
+  static const int FLOW_STEPS_MIN = 4;
+  static const int FLOW_STEPS_MAX = 32;
+  static const int FLOW_STEPS_SLIDER_DIVISIONS = 7;
+
+  /// Classifier-free guidance — ပုံသေနှင့် အပိုင်းအခြား (အဆင့် 0.5) သည် HF Space အတိုင်း။
+  static const double CFG_STRENGTH_DEFAULT = 3.0;
+  static const double CFG_STRENGTH_MIN = 1.0;
+  static const double CFG_STRENGTH_MAX = 5.0;
+  static const int CFG_SLIDER_DIVISIONS = 8;
 
   /// Token များကြားတွင် ထည့်သော blank token (StableTTS `intersperse`)။
   static const int BLANK_TOKEN = 0;

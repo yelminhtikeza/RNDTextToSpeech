@@ -14,6 +14,7 @@ import '../models/burmese_speech_state.dart';
 import '../myanmartts/myanmar_tts_models.dart';
 import '../myanmartts/myanmar_tts_speaker.dart';
 import '../myanmartts/onnx_myanmar_tts_models.dart';
+import '../myanmartts/synthesis_settings.dart';
 import '../services/audio_file_saver.dart';
 import '../services/audio_output.dart';
 import '../services/audioplayers_audio_output.dart';
@@ -90,6 +91,16 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
 
   void updatePitch({required double pitch}) {
     state = state.copyWith(pitch: pitch);
+  }
+
+  /// Slider ရွှေ့ချိန်တွင် state သာ ပြောင်းပြီး နောက်တစ်ကြိမ် ဖတ်သည့်အခါမှ သုံးသည်။
+  /// ဖတ်ပြီးသား download အသံကို မဖျက်ပါ — စာနှင့် ကိုက်ညီနေဆဲ (ကြားခဲ့သည့်အတိုင်း) ဖြစ်သောကြောင့်။
+  void updateFlowSteps({required int steps}) {
+    state = state.copyWith(flowSteps: steps);
+  }
+
+  void updateCfgStrength({required double cfgStrength}) {
+    state = state.copyWith(cfgStrength: cfgStrength);
   }
 
   Future<void> speak({required String text}) async {
@@ -227,8 +238,14 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
   Future<void> _speakOnDevice({required String text}) async {
     try {
       // Slider ၏ speech rate (0.5 = ပုံမှန်) ကို duration multiplier အဖြစ် ပြောင်းသည် — rate မြင့်လေ အသံတိုလေ။
-      final Uint8List? audio =
-          await _onDevice.speak(text: text, lengthScale: TtsConfig.SPEECH_RATE_DEFAULT / state.speechRate);
+      final Uint8List? audio = await _onDevice.speak(
+        text: text,
+        settings: SynthesisSettings(
+          lengthScale: TtsConfig.SPEECH_RATE_DEFAULT / state.speechRate,
+          flowSteps: state.flowSteps,
+          cfgStrength: state.cfgStrength,
+        ),
+      );
       if (!ref.mounted) return;
       developer.log('action=speak engine=${TtsConfig.ON_DEVICE_ENGINE_ID} length=${text.length} '
           'result=${audio == null ? 'stopped' : 'ok'}', name: _LOG_NAME);

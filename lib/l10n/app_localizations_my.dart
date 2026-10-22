@@ -87,4 +87,18 @@ class AppLocalizationsMy extends AppLocalizations {
 
   @override
   String get downloadHint => 'အသံကို ဒေါင်းလုဒ်လုပ်ရန် စာကို အရင်ဖတ်ပါ။';
+
+  @override
+  String get flowStepsLabel => 'Step';
+
+  @override
+  String get flowStepsHint =>
+      'Step များလေ အသံကြည်လေ ဖြစ်သော်လည်း ထုတ်ရန် ကြာလေ ဖြစ်သည် (အချိန်သည် step အရေအတွက်နှင့် အချိုးကျ)။';
+
+  @override
+  String get cfgLabel => 'CFG';
+
+  @override
+  String get cfgHint =>
+      'အသံသည် စာကို မည်မျှ တင်းကျပ်စွာ လိုက်မည်နည်း။ 1 တွင် လွင့်/ဝါးနိုင်၊ ~3 မျှတ၊ 4–5 ပိုပြတ်သားသော်လည်း တင်းမာနိုင်။';
 }

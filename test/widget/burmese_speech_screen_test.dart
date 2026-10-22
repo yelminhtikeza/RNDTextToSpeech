@@ -137,4 +137,29 @@ void main() {
 
     expect(find.text('Download'), findsNothing);
   });
+
+  testWidgets('Steps and CFG sliders show their values for MyanmarTTS only', (WidgetTester tester) async {
+    // Slider အားလုံး တစ်မျက်နှာပြင်တည်းတွင် မြင်ရစေရန် ဖုန်းအရွယ် (logical 400×1000) ထားသည်။
+    tester.view.physicalSize = const Size(1200, 3000);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final FakeTtsService system = FakeTtsService(
+      engines: <String>[_BURMESE_ENGINE],
+      burmeseEngines: <String>{_BURMESE_ENGINE},
+    );
+    await _pumpApp(tester, system: system);
+
+    expect(find.text('Steps'), findsOneWidget);
+    expect(find.text('16'), findsOneWidget);
+    expect(find.text('CFG'), findsOneWidget);
+    expect(find.text('3.0'), findsOneWidget);
+
+    await tester.tap(find.text(_ON_DEVICE_LABEL));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(_BURMESE_ENGINE).last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Steps'), findsNothing);
+    expect(find.text('CFG'), findsNothing);
+  });
 }

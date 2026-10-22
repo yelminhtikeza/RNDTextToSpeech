@@ -85,4 +85,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadHint => 'Speak the text first to download its audio.';
+
+  @override
+  String get flowStepsLabel => 'Steps';
+
+  @override
+  String get flowStepsHint =>
+      'More steps sound clearer but take longer to generate (time grows with the step count).';
+
+  @override
+  String get cfgLabel => 'CFG';
+
+  @override
+  String get cfgHint =>
+      'How strictly the voice follows the text. 1 can drift or mumble, about 3 is balanced, and 4–5 is sharper but can sound strained.';
 }

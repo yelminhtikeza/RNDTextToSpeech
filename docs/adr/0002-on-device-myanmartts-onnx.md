@@ -24,7 +24,11 @@ product owner က ဆုံးဖြတ်ခဲ့သည်။ ထို model 
 7. Estimator graph ထဲ Euler step (`x + dt·v`) ထည့်ထားသဖြင့် step loop တစ်လျှောက် tensor များ native ဘက်တွင်သာ ရှိပြီး
    platform channel မှ မကူးရပါ။
 8. စာရှည်ကို ဝါကျ (။) အလိုက် ≤120 စာလုံး ခွဲပြီး အပိုင်း i ဖွင့်နေစဉ် i+1 ကို ကြိုထုတ်သည်။
-9. **Download:** အဆုံးထိ ဖတ်ပြီးသော MyanmarTTS အသံကို WAV (44.1 kHz, 16-bit mono) တစ်ဖိုင်အဖြစ် Android "Save as"
+9. **Step နှင့် CFG ကို slider ဖြင့် ချိန်နိုင်သည်** (MyanmarTTS ရွေးထားစဉ်သာ) — step 4–32 (အဆင့် 4)၊ CFG 1.0–5.0 (အဆင့် 0.5)၊
+   HF Space ၏ အပိုင်းအခြားအတိုင်း။ ပုံသေတန်ဖိုး (16 / 3.0) သည် နားထောင်ရွေးထားသော ဖိုင် 5 ဖြစ်သည်။
+   Estimator graph သည် `dt` နှင့် `cfg` ကို input အဖြစ် လက်ခံသဖြင့် model ပြန် export မလိုပါ။
+   Step များလေ ထုတ်ချိန် အချိုးကျ ကြာလေ ဖြစ်ပြီး CFG သည် အချိန်မပြောင်းပါ (cond/uncond ကို batch 2 ဖြင့် တစ်ပြိုင်တည်း တွက်)။
+10. **Download:** အဆုံးထိ ဖတ်ပြီးသော MyanmarTTS အသံကို WAV (44.1 kHz, 16-bit mono) တစ်ဖိုင်အဖြစ် Android "Save as"
    dialog (Storage Access Framework, `flutter_file_dialog`) ဖြင့် သိမ်းနိုင်သည်။ ကြားခဲ့သည့် အသံကိုသာ သိမ်းသဖြင့်
    ထပ်မထုတ်ရ။ ရပ်ထားသော/စာပြင်ပြီးသော/engine ပြောင်းပြီးသော အသံကို မပေးပါ — စာနှင့် မကိုက်သော ဖိုင်မထွက်စေရန်။
    - ပယ်ခဲ့သော ရွေးချယ်မှု: MediaStore ဖြင့် Downloads သို့ တိုက်ရိုက်ရေးခြင်း (Android version အလိုက် permission ကွဲ)၊

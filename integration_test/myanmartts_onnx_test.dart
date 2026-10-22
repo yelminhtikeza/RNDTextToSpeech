@@ -58,6 +58,8 @@ void main() {
       alignedFeatures: aligned,
       frames: frames,
       noise: noise(aligned.length),
+      flowSteps: MyanmarTtsConfig.FLOW_STEPS_DEFAULT,
+      cfgStrength: MyanmarTtsConfig.CFG_STRENGTH_DEFAULT,
       isCancelled: () => false,
     );
     final Float32List audio = InverseStft(fftSize: MyanmarTtsConfig.FFT_SIZE, hopLength: MyanmarTtsConfig.HOP_LENGTH)

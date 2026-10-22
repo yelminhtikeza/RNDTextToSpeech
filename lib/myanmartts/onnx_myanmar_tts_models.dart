@@ -61,6 +61,8 @@ class OnnxMyanmarTtsModels implements MyanmarTtsModels {
     required Float32List alignedFeatures,
     required int frames,
     required Float32List noise,
+    required int flowSteps,
+    required double cfgStrength,
     required bool Function() isCancelled,
   }) =>
       _guard(
@@ -76,15 +78,15 @@ class OnnxMyanmarTtsModels implements MyanmarTtsModels {
             owned.addAll(prenetOutputs.values);
             final OrtValue conditioning = prenetOutputs['mu_proj']!;
 
-            const double stepSize = 1 / MyanmarTtsConfig.FLOW_STEPS;
+            final double stepSize = 1 / flowSteps;
             final OrtValue dt = await OrtValue.fromList(Float32List.fromList(<double>[stepSize]), <int>[1]);
             final OrtValue cfg =
-                await OrtValue.fromList(Float32List.fromList(<double>[MyanmarTtsConfig.CFG_STRENGTH]), <int>[1]);
+                await OrtValue.fromList(Float32List.fromList(<double>[cfgStrength]), <int>[1]);
             owned.addAll(<OrtValue>[dt, cfg]);
 
             OrtValue x = await OrtValue.fromList(noise, melShape);
             owned.add(x);
-            for (int step = 0; step < MyanmarTtsConfig.FLOW_STEPS; step++) {
+            for (int step = 0; step < flowSteps; step++) {
               if (isCancelled()) throw const SynthesisCancelledException();
               final OrtValue t = await OrtValue.fromList(Float32List.fromList(<double>[step * stepSize]), <int>[1]);
               final Map<String, OrtValue> stepOutputs = await _requireSession(_estimator)

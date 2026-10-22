@@ -8,12 +8,14 @@ abstract interface class MyanmarTtsModels {
 
   Future<EncoderOutput> encode({required Int64List tokens});
 
-  /// Flow-matching step အားလုံးနှင့် vocoder ကို run ပြီး complex spectrum ကို ပြန်ပေးသည်။
+  /// Flow-matching step [flowSteps] ခုနှင့် vocoder ကို run ပြီး complex spectrum ကို ပြန်ပေးသည်။
   /// Step တစ်ခုချင်းကြားတွင် [isCancelled] ကို စစ်ပြီး true ဖြစ်ပါက [SynthesisCancelledException] ပစ်သည်။
   Future<StftSpectrum> generateSpectrum({
     required Float32List alignedFeatures,
     required int frames,
     required Float32List noise,
+    required int flowSteps,
+    required double cfgStrength,
     required bool Function() isCancelled,
   });
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rnd_text_to_speech/config/myanmartts_config.dart';
 import 'package:rnd_text_to_speech/config/tts_config.dart';
 import 'package:rnd_text_to_speech/models/audio_save_result.dart';
 import 'package:rnd_text_to_speech/models/burmese_speech_state.dart';
@@ -113,6 +114,7 @@ void main() {
 
       await _controllerOf(container).selectEngine(engineName: _BURMESE_ENGINE);
       expect(_stateOf(container).supportsPitch, isTrue);
+      expect(_stateOf(container).supportsQualityControls, isFalse);
     });
   });
 
@@ -129,7 +131,9 @@ void main() {
       await _controllerOf(container).speak(text: '  $_BURMESE_TEXT  ');
 
       expect(onDevice.spokenText, _BURMESE_TEXT);
-      expect(onDevice.lengthScale, 1.0);
+      expect(onDevice.settings!.lengthScale, 1.0);
+      expect(onDevice.settings!.flowSteps, MyanmarTtsConfig.FLOW_STEPS_DEFAULT);
+      expect(onDevice.settings!.cfgStrength, MyanmarTtsConfig.CFG_STRENGTH_DEFAULT);
       expect(_stateOf(container).status, SpeechStatus.ready);
     });
 
@@ -137,7 +141,24 @@ void main() {
       _controllerOf(container).updateSpeechRate(rate: 1.0);
       await _controllerOf(container).speak(text: _BURMESE_TEXT);
 
-      expect(onDevice.lengthScale, 0.5);
+      expect(onDevice.settings!.lengthScale, 0.5);
+    });
+
+    test('uses the chosen steps and CFG', () async {
+      _controllerOf(container).updateFlowSteps(steps: 8);
+      _controllerOf(container).updateCfgStrength(cfgStrength: 4.5);
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+
+      expect(onDevice.settings!.flowSteps, 8);
+      expect(onDevice.settings!.cfgStrength, 4.5);
+    });
+
+    test('changing steps or CFG keeps the already spoken audio downloadable', () async {
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+      _controllerOf(container).updateFlowSteps(steps: 32);
+      _controllerOf(container).updateCfgStrength(cfgStrength: 1.0);
+
+      expect(_stateOf(container).hasDownloadableAudio, isTrue);
     });
 
     test('rejects Zawgyi-only or non-Burmese text inline', () async {
