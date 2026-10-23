@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="my">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RNDTextToSpeech Technical Report</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Noto+Sans:wght@400;600&family=Noto+Sans+Myanmar:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sticky contents rail on wide screens + one reading column; flows drawn as stage strips; lane colours = Flow A amber, Flow B jade. */
+:root {
+  --bg: #f5f7f6;
+  --surface: #ffffff;
+  --ink: #17231f;
+  --muted: #56645f;
+  --line: #d5ddd9;
+  --native: #b8741a;
+  --native-soft: #fbf0df;
+  --device: #0f7a5c;
+  --device-soft: #e1f2eb;
+  --warn: #a4471c;
+  --warn-soft: #fbe9df;
+  --code-bg: #eef2f0;
+  --font-display: "Bricolage Grotesque", "Noto Sans", system-ui, sans-serif;
+  --font-body: "Noto Sans", "Noto Sans Myanmar", "Myanmar Text", "Pyidaungsu", "Padauk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101715; --surface: #18221f; --ink: #e6eeea; --muted: #9db0a8; --line: #2c3a35;
+    --native: #e8a64b; --native-soft: #2e2416; --device: #4cc79d; --device-soft: #12302a;
+    --warn: #f08a5d; --warn-soft: #3a2118; --code-bg: #0c1311;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101715; --surface: #18221f; --ink: #e6eeea; --muted: #9db0a8; --line: #2c3a35;
+  --native: #e8a64b; --native-soft: #2e2416; --device: #4cc79d; --device-soft: #12302a;
+  --warn: #f08a5d; --warn-soft: #3a2118; --code-bg: #0c1311;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15.5px/1.7 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.shell { max-width: 1180px; margin: 0 auto; padding-block: 40px 64px; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; }
+@media (max-width: 900px) { .shell { grid-template-columns: minmax(0, 1fr); } nav.toc { display: none; } }
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; font-size: 0.88rem; display: grid; gap: 4px; }
+nav.toc a { color: var(--muted); text-decoration: none; padding: 2px 0; }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); }
+main { display: grid; gap: 56px; min-width: 0; }
+section { display: grid; gap: 16px; min-width: 0; scroll-margin-top: 24px; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.9rem, 4.5vw, 2.8rem); font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: 1.5rem; font-weight: 800; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+h2 .num { font-size: 0.85rem; color: var(--muted); font-weight: 600; font-family: var(--font-mono); }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 72ch; }
+.my { font-family: "Noto Sans Myanmar", "Myanmar Text", "Pyidaungsu", "Padauk", var(--font-body); }
+.muted { color: var(--muted); }
+.eyebrow { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { margin: 0; background: var(--code-bg); border-radius: 10px; padding: 12px 14px; overflow-x: auto; font: 0.82rem/1.6 var(--font-mono); }
+a { color: var(--device); }
+:focus-visible { outline: 2px solid var(--device); outline-offset: 2px; }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; max-width: 76ch; }
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 2px; }
+.fact b { font: 800 1.35rem/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
+.fact span { font-size: 0.85rem; color: var(--muted); }
+
+/* Stage strips: a numbered sequence of boxes joined by arrows; wraps on narrow screens. */
+.strip { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.stage { flex: 1 1 150px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; align-content: start; }
+.stage .k { font: 600 0.72rem/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
+.stage.onnx { border-color: var(--device); }
+.stage.onnx .k { color: var(--device); }
+.stage.dart .k { color: var(--muted); }
+.stage.native .k { color: var(--native); }
+.stage small { color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+.join { align-self: center; color: var(--muted); font-family: var(--font-mono); }
+@media (max-width: 640px) { .join { display: none; } }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line); }
+.legend .lo { border-color: var(--device); background: var(--device-soft); }
+.legend .ld { background: var(--surface); }
+
+.lane { border-radius: 14px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.lane.native { background: var(--native-soft); }
+.lane.device { background: var(--device-soft); }
+.tag { justify-self: start; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 6px; padding: 2px 8px; color: var(--surface); }
+.native .tag { background: var(--native); }
+.device .tag { background: var(--device); }
+
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 0.92rem; }
+th { font-family: var(--font-display); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.chosen td { background: var(--device-soft); }
+
+.problem { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.problem > div { padding: 12px 14px; display: grid; gap: 4px; min-width: 0; }
+.problem > div + div { border-left: 1px solid var(--line); }
+@media (max-width: 640px) { .problem { grid-template-columns: minmax(0, 1fr); } .problem > div + div { border-left: 0; border-top: 1px solid var(--line); } }
+.problem .lab { font: 600 0.72rem/1 var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.stack { display: grid; gap: 10px; }
+
+.open { display: grid; gap: 8px; }
+.open li { list-style: none; background: var(--warn-soft); border-radius: 10px; padding: 10px 12px; }
+.open { padding: 0; }
+.open b { color: var(--warn); }
+
+ol.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+ol.timeline li { display: grid; grid-template-columns: 92px 74px minmax(0, 1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+ol.timeline .mono { color: var(--muted); }
+@media (max-width: 560px) { ol.timeline li { grid-template-columns: 74px minmax(0, 1fr); } ol.timeline .date { display: none; } }
+
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+details summary { cursor: pointer; font-weight: 600; }
+details[open] summary { margin-bottom: 10px; }
+
+.codemap { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.codemap div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; min-width: 0; }
+.codemap code { background: none; padding: 0; }
+footer { color: var(--muted); font-size: 0.86rem; }
+</style>
+</head>
+<body>
+<div class="shell">
+<nav class="toc" aria-label="Contents">
+  <span class="eyebrow">Contents</span>
+  <a href="#summary">Summary</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#flow-a">Flow A · phone engines</a>
+  <a href="#convert">Flow B1 · model → ONNX</a>
+  <a href="#runtime">Flow B2 · running in Flutter</a>
+  <a href="#voices">Voices</a>
+  <a href="#player">Player &amp; waveform</a>
+  <a href="#verification">Verification</a>
+  <a href="#decisions">Decisions (ADRs)</a>
+  <a href="#build">Build &amp; size</a>
+  <a href="#open">Open items</a>
+  <a href="#timeline">Timeline</a>
+  <a href="#code">Code map</a>
+</nav>
+
+<main>
+
+<header class="stack" id="summary">
+  <span class="eyebrow">R&amp;D report · RNDTextToSpeech · 22–23 October 2026</span>
+  <h1>RNDTextToSpeech technical report</h1>
+  <p class="my">Android ဖုန်းပေါ်တွင် မြန်မာစာကို အသံထွက်ဖတ်ရန် စမ်းသပ်ချက်။ ဖုန်းအများစု၏ built-in engine တွင် မြန်မာအသံ မပါသဖြင့် Hugging Face ပေါ်ရှိ <b>freococo/MyanmarTTS</b> (PyTorch) ကို ONNX သို့ ပြောင်းပြီး Flutter app ထဲ internet မလိုဘဲ run စေခဲ့သည်။ ထို့ပြင် ဖုန်းတွင်ရှိသော engine အားလုံး (ဘာသာစုံ) ကို ဆက်သုံးနိုင်ပြီး engine နှစ်မျိုးလုံးတွင် waveform၊ player နှင့် download ပေးထားသည်။</p>
+  <div class="facts">
+    <div class="fact"><b>~104 MB</b><span>5 ONNX models, bundled</span></div>
+    <div class="fact"><b>16 steps</b><span>flow-matching steps, CFG 3.0</span></div>
+    <div class="fact"><b>0.90 RTF</b><span>4.9 s of audio in 4.4 s, PC ARM CPU (4 threads)</span></div>
+    <div class="fact"><b>9 + own</b><span>preset voices + recorded voices</span></div>
+    <div class="fact"><b>147</b><span>unit &amp; widget tests passing</span></div>
+    <div class="fact"><b>5 ADRs</b><span>decisions with rejected options</span></div>
+  </div>
+  <p class="muted my">RTF (real-time factor) 1 အောက် = ဖတ်သည့်အချိန်ထက် ထုတ်ချိန် မြန်သည်။ ဖုန်းအစစ်ပေါ်တွင် မတိုင်းရသေး (<a href="#open">Open items</a>)။</p>
+</header>
+
+<section id="architecture" aria-labelledby="h-arch">
+  <h2 id="h-arch"><span class="num">01</span>Architecture</h2>
+  <p class="my">Flutter 3.41 (Dart 3.11)၊ state အားလုံး Riverpod။ UI → controller (business logic တစ်နေရာတည်း) → service interface (platform boundary) ဟူ၍ ခွဲထားပြီး service တိုင်းကို test တွင် fake ဖြင့် အစားထိုးနိုင်သည်။</p>
+  <div class="strip" role="list" aria-label="Layers">
+    <div class="stage" role="listitem"><span class="k">UI</span><b>BurmeseSpeechScreen</b><small>engine / language / voice dropdowns, text, Speak·Stop, player panel, sliders, record sheet</small></div>
+    <span class="join" aria-hidden="true">→</span>
+    <div class="stage" role="listitem"><span class="k">Riverpod</span><b>Controllers</b><small>BurmeseSpeechController · VoiceController · VoiceRecordingController</small></div>
+    <span class="join" aria-hidden="true">→</span>
+    <div class="stage native" role="listitem"><span class="k">Flow A</span><b>TtsService</b><small>FlutterTtsService (flutter_tts 4.2.5)</small></div>
+    <div class="stage onnx" role="listitem"><span class="k">Flow B</span><b>OnDeviceSpeaker</b><small>MyanmarTtsSpeaker → OnnxMyanmarTtsModels (flutter_onnxruntime 1.9, ORT 1.28)</small></div>
+    <div class="stage" role="listitem"><span class="k">Shared</span><b>Audio &amp; files</b><small>AudioOutput (audioplayers) · AudioFileSaver (SAF dialog) · VoiceLibrary · VoiceRecorder (record 6.2)</small></div>
+  </div>
+  <p class="muted my">Engine ID <code>on-device.myanmartts</code> သည် MyanmarTTS ကို ကိုယ်စားပြုပြီး engine စာရင်း၏ ပထမ/ပုံသေ ဖြစ်သည်။ Android engine ၏ အသံကိုလည်း ဖိုင်ထုတ်ပြီးပါက Flow B ၏ player ဖြင့်ပင် ဖွင့်သဖြင့် player တစ်ခုတည်း ရှိသည်။</p>
+</section>
+
+<section id="flow-a" aria-labelledby="h-a">
+  <h2 id="h-a"><span class="num">02</span>Flow A · native and third-party engines</h2>
+  <div class="lane native">
+    <span class="tag">Flow A</span>
+    <div class="strip" role="list">
+      <div class="stage native" role="listitem"><span class="k">1 · getEngines</span><b>List every engine</b><small class="my">စစ်ထုတ်ခြင်း မရှိ။ App စဖွင့်ချိန် engine တစ်ခုချင်း initialize မလုပ်တော့၍ မြန်။</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage native" role="listitem"><span class="k">2 · getLanguages</span><b>Engine's languages</b><small class="my">ရွေးမှသာ မေး၊ အက္ခရာစဉ်၊ ပုံသေ my-MM → my → ပထမ။</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage native" role="listitem"><span class="k">3 · getVoices</span><b>Voices for that language</b><small class="my">locale တူသည်များ၊ notInstalled ဖယ်၊ online မှတ်၊ "Voice 1, 2…"။</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage native" role="listitem"><span class="k">4 · speak</span><b>Read aloud instantly</b><small class="my">ဖတ်တိုင်း ဘာသာ+အသံ+နှုန်း+pitch ကို ပြန်သတ်မှတ်။</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage native" role="listitem"><span class="k">5 · on demand</span><b>Play / Download → synthesizeToFile</b><small class="my">ကြားခဲ့သော setting ဖြင့် temp WAV တစ်ခုတည်းသို့ ထုတ် → mono 16-bit ပြောင်း → player။ မရလျှင် အကြောင်းရင်း ပြ။</small></div>
+    </div>
+  </div>
+  <h3>Why "speak first, render on demand" (option C)</h3>
+  <p class="my">Android သည် engine က speaker သို့ ဖတ်နေသော အသံကို app သို့ မပေး။ အသံရရန် <code>synthesizeToFile</code> ဖြင့် သီးခြား ထုတ်ခိုင်းရသည်။ ရွေးချယ်စရာ သုံးခုကို နှိုင်းယှဉ်ပြီး product owner က C ကို ရွေးခဲ့သည် (ADR 0005)။</p>
+  <div class="tbl"><table>
+    <thead><tr><th scope="col">Option</th><th scope="col">Delay before sound</th><th scope="col">Engine works twice</th><th scope="col">Result</th></tr></thead>
+    <tbody>
+      <tr><td>A · render file, then play</td><td>Whole text renders first</td><td>Never</td><td>Rejected: slow start on long text</td></tr>
+      <tr><td>B · speak, then always render</td><td>None</td><td>Every time</td><td>Rejected: wasted battery / data</td></tr>
+      <tr class="chosen"><td><b>C · speak, render on Play/Download</b></td><td>None</td><td>Only when asked</td><td><b>Chosen</b></td></tr>
+    </tbody>
+  </table></div>
+  <h3>flutter_tts quirks found by reading the plugin source (4.2.5)</h3>
+  <div class="stack">
+    <div class="problem"><div><span class="lab">Found</span><p class="my"><code>awaitSynthCompletion</code> ၏ Future သည် engine error နှင့် <code>stop()</code> တွင် ဘယ်တော့မှ မပြီး — app ထာဝရ စောင့်နေမည်။</p></div><div><span class="lab">Solution</span><p class="my">မသုံးဘဲ start/complete/error handler ဖြင့် ကိုယ်တိုင် ခြေရာခံ၊ <code>stop()</code> က စောင့်နေသူကို လွှတ်။</p></div></div>
+    <div class="problem"><div><span class="lab">Found</span><p class="my">Engine က ဖိုင်ထုတ်မှု မပံ့ပိုးပါက (ERROR ချက်ချင်းပြန်) callback လုံးဝ မလာ။</p></div><div><span class="lab">Solution</span><p class="my">5 စက္ကန့်အတွင်း မစပါက မပံ့ပိုးဟု ယူ၊ engine ကို မှတ်ထား၍ ထပ်မစမ်း။ စပြီးပါက အချိန်မကန့်သတ်။</p></div></div>
+    <div class="problem"><div><span class="lab">Found</span><p class="my">ပုံသေ <code>synthesizeToFile</code> သည် Android 11+ တွင် အသုံးပြုသူ၏ Music folder (MediaStore) သို့ ရေး — ကိုယ်ရေးကိုယ်တာ စာ၏ အသံ ကျန်ရစ်။</p></div><div><span class="lab">Solution</span><p class="my"><code>isFullPath: true</code> ဖြင့် app cache ထဲ temp ဖိုင်တစ်ခုတည်း။ မထုတ်မီ ဖျက် (engine မရေးဘဲ "ပြီးပြီ" ဆိုလျှင် ဖိုင်ဟောင်း မဖတ်မိစေ)။</p></div></div>
+    <div class="problem"><div><span class="lab">Found</span><p class="my">Engine အလိုက် WAV format ကွဲ (Google ~22–24 kHz၊ stereo ဖြစ်နိုင်၊ LIST chunk)။</p></div><div><span class="lab">Solution</span><p class="my">Chunk ရှာဖတ်သော WavDecoder → mono 16-bit 44-byte header သို့ isolate ထဲ ပြောင်း။ 16-bit PCM မဟုတ်ပါက fallback။</p></div></div>
+    <div class="problem"><div><span class="lab">Found</span><p class="my"><code>stop()</code> သည် ဆိုင်းငံ့ <code>speak()</code> ကို 0 (မအောင်မြင်) ဖြင့် ပြီးစေ၊ Android pause မယုံကြည်ရ။</p></div><div><span class="lab">Solution</span><p class="my">အသုံးပြုသူ ရပ်ခြင်းကို flag ဖြင့် ခွဲ၍ အမှား မပြ။ Pause ကို app player တွင်သာ ပေး။</p></div></div>
+  </div>
+</section>
+
+<section id="convert" aria-labelledby="h-b1">
+  <h2 id="h-b1"><span class="num">03</span>Flow B1 · converting MyanmarTTS to ONNX</h2>
+  <p class="my">Source — <a href="https://huggingface.co/freococo/MyanmarTTS">huggingface.co/freococo/MyanmarTTS</a>: StableTTS (flow matching) + Vocos vocoder၊ parameter 31M၊ weights CC0 1.0။ Python package <code>myanmartts 1.0.2</code> ၏ model code ကို သုံးသည်။ Script အားလုံး <code>tools/myanmartts_onnx/</code> တွင် (PyTorch 2.x CPU၊ onnx/onnxruntime 1.23)။</p>
+  <div class="lane device">
+    <span class="tag">Flow B1 · PC, one-time</span>
+    <div class="strip" role="list">
+      <div class="stage onnx" role="listitem"><span class="k">1 · download</span><b>model_fp32.pt, vocos.pt</b><small>+ samples/sample_0.wav, myanmartts wheel</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">2 · export_onnx.py</span><b>5 fp32 graphs</b><small>encoder · prenet · estimator · vocos · reference (opset 17)</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">3 · verify_onnx.py</span><b>Match PyTorch</b><small>mel diff 3.3e-5, audio 2.6e-3, embedding 2.9e-6</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">4 · quantize.py</span><b>Mixed int8</b><small>encoder + estimator int8 (dynamic), prenet + vocos fp32</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">5 · listen</span><b>render_sample.py</b><small>5 variants → product owner picked #5</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">6 · fixtures</span><b>Dart parity data</b><small>make_dart_fixtures.py · dump_parity.py</small></div>
+    </div>
+  </div>
+
+  <h3>The five graphs</h3>
+  <div class="tbl"><table>
+    <thead><tr><th scope="col">Asset</th><th scope="col">Role</th><th scope="col">Precision</th><th scope="col">Size</th></tr></thead>
+    <tbody>
+      <tr><td><code>myanmartts_v2_encoder.onnx</code></td><td class="my">token → text features + log duration (speaker input ပါ)</td><td>int8</td><td class="n">11.1 MB</td></tr>
+      <tr><td><code>myanmartts_v1_prenet.onnx</code></td><td class="my">ချဲ့ထားသော features → decoder conditioning</td><td>fp32</td><td class="n">17.3 MB</td></tr>
+      <tr><td><code>myanmartts_v2_estimator.onnx</code></td><td class="my">Flow-matching velocity + Euler step (<code>x + dt·v</code>) + CFG ကို graph ထဲတွင်</td><td>int8</td><td class="n">16.6 MB</td></tr>
+      <tr><td><code>myanmartts_v1_vocos.onnx</code></td><td class="my">Mel (128) → STFT real/imag (n_fft 2048, hop 512)</td><td>fp32</td><td class="n">56.7 MB</td></tr>
+      <tr><td><code>myanmartts_v1_reference.onnx</code></td><td class="my">Magnitude STFT → mel + log + reference encoder → 256 လက်ဗွေ</td><td>fp32</td><td class="n">2.4 MB</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Export problems solved</h3>
+  <div class="stack">
+    <div class="problem"><div><span class="lab">Problem</span><p class="my"><code>torch.stft</code> / ISTFT သည် complex tensor ဖြစ်၍ ONNX export မရ။ DFT matrix ဖြင့် graph ထဲ ထည့်ပါက model ~17–32 MB ပိုကြီး။</p></div><div><span class="lab">Solution</span><p class="my">Vocos က real/imag ပြန်ပေးပြီး ISTFT (နှင့် recording ၏ STFT) ကို Dart radix-2 FFT ဖြင့် ရေး။ Python နှင့် diff &lt; 1e-5။</p></div></div>
+    <div class="problem"><div><span class="lab">Problem</span><p class="my"><code>nn.MultiheadAttention</code> ၏ fast-path op ကို ONNX မသိ၊ ပိတ်လျှင်လည်း sequence အရှည် ပုံသေ reshape ဖြစ်။</p></div><div><span class="lab">Solution</span><p class="my">Reference encoder ၏ attention ကို <code>in_proj</code>/<code>out_proj</code> weight ဖြင့် ကိုယ်တိုင်ရေး — သင်္ချာ တူ၊ verify ဖြင့် စစ်။</p></div></div>
+    <div class="problem"><div><span class="lab">Problem</span><p class="my">Step တိုင်း tensor ကို platform channel ဖြင့် Dart ↔ native ကူးပါက နှေး။</p></div><div><span class="lab">Solution</span><p class="my">Euler update ကို estimator graph ထဲ ထည့်၊ <code>dt</code> နှင့် <code>cfg</code> ကို input အဖြစ် — step/CFG slider အတွက် re-export မလို။ CFG ၏ cond/uncond ကို batch 2 ဖြင့် တစ်ပြိုင်တည်း။</p></div></div>
+    <div class="problem"><div><span class="lab">Problem</span><p class="my">v1 တွင် speaker embedding ကို graph ထဲ constant-fold လုပ်ထား၍ အသံ တစ်မျိုးတည်း။</p></div><div><span class="lab">Solution</span><p class="my">v2 encoder/estimator ကို <code>speaker[1,256]</code> input ဖြင့် ပြန် export (prenet/vocos byte တူ၍ v1 ဆက်သုံး)။</p></div></div>
+    <div class="problem"><div><span class="lab">Problem</span><p class="my">Plugin သည် asset ကို ဖိုင်အမည်ဖြင့် cache လုပ်၍ model ပြောင်းလည်း ဖုန်းက အဟောင်းကို တိတ်တဆိတ် သုံးမည်။</p></div><div><span class="lab">Solution</span><p class="my">ဖိုင်အမည်တွင် version (<code>_v1_</code>, <code>_v2_</code>) ထည့်၊ ပြောင်းတိုင်း တိုး။</p></div></div>
+  </div>
+
+  <h3>Size vs quality: the five listening samples</h3>
+  <p class="my">ဖိုင်များ <code>docs/myanmartts-onnx/listening/</code> တွင်။ Product owner နားထောင်ပြီး #5 ကို ရွေးသည် (ယခု speaker input ပါ၍ ~104 MB)။</p>
+  <div class="tbl"><table>
+    <thead><tr><th scope="col">#</th><th scope="col">Variant</th><th scope="col">Size</th><th scope="col">Steps</th><th scope="col">Outcome</th></tr></thead>
+    <tbody>
+      <tr><td class="n">1</td><td>PyTorch original</td><td class="n">—</td><td class="n">32</td><td class="my">Reference။ PC CPU တွင် real-time ၏ ၄ ဆ နှေး</td></tr>
+      <tr><td class="n">2</td><td>ONNX fp32</td><td class="n">174 MB</td><td class="n">8</td><td class="my">APK ကြီးလွန်း၊ #3 နှင့် နားဖြင့် မခွဲနိုင်</td></tr>
+      <tr><td class="n">3</td><td>ONNX mixed</td><td class="n">97 MB</td><td class="n">8</td><td class="my">၂ ဆ မြန်သော်လည်း step 8 တွင် အရည်အသွေး ကျ</td></tr>
+      <tr><td class="n">4</td><td>ONNX all int8</td><td class="n">62 MB</td><td class="n">8</td><td class="my">Vocos int8 spectral error 6% — ပယ်</td></tr>
+      <tr class="chosen"><td class="n"><b>5</b></td><td><b>ONNX mixed</b></td><td class="n"><b>97 MB</b></td><td class="n"><b>16</b></td><td class="my"><b>ရွေးချယ်</b> — mel error 1.1–1.2%</td></tr>
+    </tbody>
+  </table></div>
+  <details>
+    <summary>Commands (from tools/myanmartts_onnx/README.md)</summary>
+<pre>B=https://huggingface.co/freococo/MyanmarTTS/resolve/main
+for f in model_fp32.pt vocos.pt samples/sample_0.wav; do curl -sL -o hf_model/$f $B/$f; done
+python export_onnx.py   work/pkg/src work/hf_model work/fp32
+python verify_onnx.py   work/pkg/src work/hf_model work/fp32
+python quantize.py      work/fp32 work/app
+python quant_error.py   work/pkg/src work/fp32 work/app presets.json
+python render_sample.py work/pkg/src work/app sample.wav 16 presets.json original
+python make_dart_fixtures.py work/pkg/src test/fixtures/myanmartts_reference.json
+python dump_parity.py   work/pkg/src work/app parity/ presets.json</pre>
+  </details>
+</section>
+
+<section id="runtime" aria-labelledby="h-b2">
+  <h2 id="h-b2"><span class="num">04</span>Flow B2 · running the model in the Flutter app</h2>
+  <p class="my">Graph ထဲ ထည့်၍မရသော အပိုင်းများကို Dart ဖြင့် ရေးပြီး Python reference မှ ထုတ်ထားသော fixture ဖြင့် ကိုက်ညီကြောင်း test လုပ်ထားသည်။ ONNX ကို <code>flutter_onnxruntime</code> (CPU, intra-op thread 4) ဖြင့် run သည်။</p>
+  <div class="legend"><span><i class="lo"></i>ONNX graph</span><span><i class="ld"></i>Dart code</span></div>
+  <div class="lane device">
+    <span class="tag">Flow B2 · each sentence</span>
+    <div class="strip" role="list">
+      <div class="stage dart" role="listitem"><span class="k">text_chunker</span><b>Split ≤120 chars</b><small class="my">ဝါကျ (။) အလိုက် — attention memory သည် frame²</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage dart" role="listitem"><span class="k">burmese_tokenizer</span><b>98-symbol tokens</b><small class="my">blank ကြားညှပ်၊ Unicode မြန်မာ မပါပါက ငြင်း (Zawgyi)</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">encoder</span><b>features + durations</b><small>speaker embedding [1,256]</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage dart" role="listitem"><span class="k">length_regulator</span><b>Expand by duration</b><small class="my">ceil(exp(logDur)·lengthScale) — speed slider</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">prenet</span><b>Conditioning</b></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">estimator × 16</span><b>Flow matching</b><small class="my">Gaussian noise မှ စ၊ Euler + CFG (step 4–32, CFG 1–5)</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">vocos</span><b>Mel → spectrum</b></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage dart" role="listitem"><span class="k">inverse_stft</span><b>44.1 kHz PCM</b><small class="my">isolate ထဲ FFT ~400 ကြိမ် (UI မထစ်)</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage dart" role="listitem"><span class="k">wav_encoder</span><b>16-bit mono WAV</b><small>audioplayers BytesSource</small></div>
+    </div>
+  </div>
+  <ul class="my">
+    <li><b>Pipelining</b> — ဝါကျ i ဖွင့်နေစဉ် i+1 ကို ကြိုထုတ်သဖြင့် ဝါကျကြား တိတ်ဆိတ်ချိန် မရှိသလောက်။ Stop လျှင် estimator loop ကို <code>isCancelled</code> ဖြင့် ဖြတ်။</li>
+    <li><b>Native memory</b> — OrtValue တိုင်းကို ချက်ချင်း release (မလုပ်ပါက ဖတ်တိုင်း memory ယိုစိမ့်)။</li>
+    <li><b>Release build</b> — R8 က ONNX Runtime Java class ကို ဖယ်ပါက release တွင်သာ crash ဖြစ်၍ <code>proguard-rules.pro</code> တွင် <code>ai.onnxruntime.**</code> keep။</li>
+    <li><b>Load</b> — model ကို တစ်ကြိမ်သာ load (Future cache)၊ မအောင်မြင်ပါက ပြန်ကြိုးစားနိုင်၊ engine စာရင်းကို ဆက်ပြ၍ Android engine သို့ ပြောင်းနိုင်။</li>
+    <li><b>Pitch</b> — model တွင် pitch ထိန်းချုပ်မှု မပါ၍ MyanmarTTS တွင် slider ပိတ်ပြီး အကြောင်းရင်း ပြ။</li>
+  </ul>
+</section>
+
+<section id="voices" aria-labelledby="h-voices">
+  <h2 id="h-voices"><span class="num">05</span>Voices</h2>
+  <p class="my">StableTTS သည် reference အသံ ၅–၁၅ စက္ကန့်မှ 256 ဂဏန်း "လက်ဗွေ" (speaker embedding) ယူ၍ ထိုအသံဖြင့် ဖတ်နိုင်သည် (zero-shot cloning)။ (ADR 0003)</p>
+  <div class="lane device">
+    <span class="tag">Preset voices · PC</span>
+    <div class="strip" role="list">
+      <div class="stage" role="listitem"><span class="k">fetch_fleurs_clips</span><b>36 Burmese clips</b><small class="my">Google FLEURS (CC BY 4.0) 2.1 GB archive ကို stream ဖတ်</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage" role="listitem"><span class="k">voice_presets</span><b>Fingerprints</b><small class="my">Python STFT + reference.onnx (ဖုန်းနှင့် လမ်းကြောင်းတူ)</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage" role="listitem"><span class="k">farthest-first</span><b>4 male + 4 female</b><small class="my">cosine အကွာအဝေး အဝေးဆုံး — speaker ID မပါ၍</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage" role="listitem"><span class="k">presets.json</span><b>9 voices, ~1 KB each</b><small>Thiri (default), Hnin, Su, May, Nandar, Aung, Kyaw, Min, Zaw</small></div>
+    </div>
+  </div>
+  <div class="lane device">
+    <span class="tag">Recorded voice · phone</span>
+    <div class="strip" role="list">
+      <div class="stage dart" role="listitem"><span class="k">record</span><b>5–15 s, 44.1 kHz mono</b><small class="my">ခွင့်ပြုချက် သတိပေးချက်ပါ</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage dart" role="listitem"><span class="k">wav_decoder</span><b>Decode + resample</b><small class="my">ကြာချိန်ကို decoded WAV မှ တိုင်း</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage dart" role="listitem"><span class="k">magnitude_stft</span><b>Reflect pad 768</b><small>√(|X|²+1e-6), isolate</small></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage onnx" role="listitem"><span class="k">reference</span><b>256-number fingerprint</b></div>
+      <span class="join" aria-hidden="true">→</span>
+      <div class="stage dart" role="listitem"><span class="k">custom_voices.json</span><b>Name + fingerprint only</b><small class="my">အသံဖိုင် မသိမ်း — ဖတ်ပြီးချင်း ဖျက်</small></div>
+    </div>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th scope="col">Preset</th><th scope="col">Pitch source → generated</th><th scope="col">Fingerprint similarity</th></tr></thead>
+    <tbody>
+      <tr><td>Hnin · female_1</td><td class="n">200 → 200 Hz</td><td class="n">0.98</td></tr>
+      <tr><td>Su · female_2</td><td class="n">262 → 212 Hz</td><td class="n">0.96</td></tr>
+      <tr><td>May · female_3</td><td class="n">208 → 204 Hz</td><td class="n">0.97</td></tr>
+      <tr><td>Nandar · female_4</td><td class="n">197 → 197 Hz</td><td class="n">0.98</td></tr>
+      <tr><td>Aung · male_1</td><td class="n">220 → 182 Hz</td><td class="n">0.94</td></tr>
+      <tr><td>Kyaw · male_2</td><td class="n">— → 158 Hz</td><td class="n">0.73 (weak)</td></tr>
+      <tr><td>Min · male_3</td><td class="n">143 → 148 Hz</td><td class="n">0.92</td></tr>
+      <tr><td>Zaw · male_4</td><td class="n">136 → 137 Hz</td><td class="n">0.95</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted my">Android engine များတွင် Android <code>Voice</code> list (လူအမည်/ကျားမ မပါ) ကို "Voice N" (online မှတ်) အဖြစ် ပြသည် — Flow A အဆင့် 3 (ADR 0004)။</p>
+</section>
+
+<section id="player" aria-labelledby="h-player">
+  <h2 id="h-player"><span class="num">06</span>Player and waveform</h2>
+  <ul class="my">
+    <li><b>Waveform</b> — bar တစ်ခု = အချိန် 1/20 စက္ကန့် (ပုံသေ အရေအတွက် မဟုတ်) ဖြစ်၍ ဝါကျ တစ်ခုချင်း၏ waveform ကို <code>followedBy</code> ဖြင့် ဆက်ပြီး ဖတ်နေစဉ်ကပင် ချဲ့ပြ။ ပြချိန်တွင် bar 120 သို့ max-pool ချုံ့။</li>
+    <li><b>Position</b> — player ၏ position stream (ဝါကျအတွင်း) + ယခင်ဝါကျများ၏ ကြာချိန် = အသံတစ်ခုလုံး၏ position။ Screen rebuild မများစေရန် 100 ms အဆင့်ဖြင့်သာ state ပြင်။</li>
+    <li><b>Pause</b> — ဝါကျကြား ခေတ္တရပ်ပါက "gate" ဖြင့် နောက်ဝါကျကို တား (ထုတ်ခြင်း ဆက်လုပ်)။ Player ဖွင့်နေချိန်တွင်သာ pause/resume ခေါ် (release ဖြစ်ပြီးသော player ကို မထိ)။</li>
+    <li><b>Seek</b> — အသံ အပြည့်ရမှသာ (ဖတ်နေစဉ် နောက်ဝါကျ မထုတ်ရသေး)။ နှိပ်/ဆွဲ၍ ရွှေ့၊ မဖွင့်နေစဉ် နှိပ်လျှင် ထိုနေရာမှ စဖွင့်။</li>
+    <li><b>Download</b> — Storage Access Framework "Save as" dialog (<code>flutter_file_dialog</code>)၊ ဖိုင်အမည် <code>speech_yyyyMMdd_HHmmss.wav</code>။ စာပြင်/engine ပြောင်း/ရပ်ထားသော အသံကို မပေး (စာနှင့် မကိုက်သော ဖိုင် မထွက်စေ)။</li>
+  </ul>
+</section>
+
+<section id="verification" aria-labelledby="h-ver">
+  <h2 id="h-ver"><span class="num">07</span>Verification</h2>
+  <div class="tbl"><table>
+    <thead><tr><th scope="col">Check</th><th scope="col">Result</th><th scope="col">How</th></tr></thead>
+    <tbody>
+      <tr><td>ONNX vs PyTorch (v2)</td><td class="n">mel 3.3e-5 · audio 2.6e-3 · embedding 2.9e-6</td><td><code>verify_onnx.py</code></td></tr>
+      <tr><td>Quantization error</td><td class="n">mel 1.1% (frames 423 → 422)</td><td><code>quant_error.py</code></td></tr>
+      <tr><td>Dart ISTFT / STFT vs Python</td><td class="n">&lt; 1e-5 (relative)</td><td>fixture unit tests</td></tr>
+      <tr><td>On-device pipeline vs Python ONNX</td><td class="n">correlation 0.980, 422 frames</td><td>integration test, same noise</td></tr>
+      <tr><td>Generated voice vs its fingerprint</td><td class="n">0.998</td><td>integration test</td></tr>
+      <tr><td>Speed, 16 steps</td><td class="n">4.4–5.6 s for 4.9 s audio</td><td>PC ARM CPU, 4 threads (not a phone)</td></tr>
+      <tr><td>Unit + widget tests</td><td class="n">147 passing</td><td><code>flutter test</code>, analyzer clean</td></tr>
+    </tbody>
+  </table></div>
+  <p class="my">Test များတွင် platform တိုင်းကို fake ဖြင့် အစားထိုးသည် — FakeTtsService၊ FakeOnDeviceSpeaker၊ FakeAudioFileSaver၊ FakeVoiceLibrary၊ FakeVoiceRecorder။ flutter_tts ၏ ပြဿနာများ (callback မလာ၊ stop၊ format) ကို mock method channel ဖြင့် test လုပ်ထားသည်။ Integration test ကို Linux desktop (<code>xvfb-run</code>) တွင် bundled model အစစ်ဖြင့် run သည်။</p>
+</section>
+
+<section id="decisions" aria-labelledby="h-dec">
+  <h2 id="h-dec"><span class="num">08</span>Decisions (ADR log)</h2>
+  <div class="tbl"><table>
+    <thead><tr><th scope="col">ADR</th><th scope="col">Decision</th><th scope="col">Rejected alternatives</th></tr></thead>
+    <tbody>
+      <tr><td>0001</td><td class="my">ဖုန်းပေါ် Android engine ကို flutter_tts ဖြင့် သုံး</td><td class="my">Cloud TTS API (key၊ ကုန်ကျ၊ internet၊ စာ ပြင်ပထွက်)၊ default engine သာ သုံးခြင်း</td></tr>
+      <tr><td>0002</td><td class="my">MyanmarTTS ကို ONNX ဖြင့် ဖုန်းပေါ် run၊ mixed 97 MB၊ step 16၊ bundle</td><td class="my">HF Space API၊ ကိုယ်ပိုင် server၊ 62 MB / 174 MB၊ step 8 / 32၊ ONNX ISTFT၊ first-launch download၊ <code>onnxruntime</code> pub (2024 မှ update မရှိ)</td></tr>
+      <tr><td>0003</td><td class="my">Speaker input v2 graph၊ FLEURS preset ၉ ခု၊ ဖုန်းဖြင့် အသံသွင်း</td><td class="my">STFT ကို ONNX ထဲ၊ pitch/speed effect၊ recording ဖိုင် သိမ်းခြင်း၊ record 7 / file_dialog 3.1 (Dart 3.12 လို)</td></tr>
+      <tr><td>0004</td><td class="my">Engine အားလုံး ပြ၊ engine အလိုက် ဘာသာ + အသံ ရွေး</td><td class="my">ကြိုစစ်ခြင်း (နှေး)၊ ဘာသာအမည် ပြခြင်း (package/native လို)၊ voice code / ကျားမ ခန့်မှန်းခြင်း</td></tr>
+      <tr><td>0005</td><td class="my">Engine အသံကို Play/Download နှိပ်မှ ဖိုင်ထုတ် (option C)</td><td class="my">A (render first)၊ B (always render)၊ AudioPlaybackCapture၊ MediaStore Music folder</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted my">ADR တိုင်းတွင် rollback plan ပါ။ Design inputs (ISO 9001 8.3.3) — <code>docs/burmese-tts/design-inputs.md</code>၊ <code>docs/myanmartts-onnx/design-inputs.md</code>။</p>
+</section>
+
+<section id="build" aria-labelledby="h-build">
+  <h2 id="h-build"><span class="num">09</span>Build and size</h2>
+  <p class="my">Universal release APK ကို တိုင်းရာ <b>227.8 MB</b>။ Model ~104 MB ကို CPU အားလုံး မျှသုံးပြီး ကျန်သည် ONNX Runtime + Flutter engine ကို CPU ၄ မျိုးအတွက် ထပ်ထည့်ခြင်း။ PC emulator သာ သုံးသော x86/x86_64 ကို <code>packaging.jniLibs.excludes</code> ဖြင့် ဖယ်ထားသည် (<code>ndk.abiFilters</code> သည် <code>--split-per-abi</code> နှင့် ပဋိပက္ခ)။</p>
+<pre>flutter build apk --release --target-platform android-arm,android-arm64 --split-per-abi
+flutter build appbundle --release</pre>
+  <ul class="my">
+    <li>Models ကို Git LFS (<code>*.onnx</code>) ဖြင့် သိမ်း။ License — <code>assets/models/NOTICE.txt</code> (CC0၊ Vocos MIT၊ FLEURS CC BY 4.0)။</li>
+    <li>Android permission — <code>RECORD_AUDIO</code>၊ TTS_SERVICE query (Android 11+ package visibility)။ Google Play 16 KB page size ကို flutter_onnxruntime ≥ 1.5.1 ဖြင့် ဖြည့်။</li>
+    <li>ARM64 Linux dev machine ပေါ်တွင် aapt2 (x86 only) ကြောင့် APK build မရ — Android build ကို Mac တွင် လုပ်။</li>
+  </ul>
+</section>
+
+<section id="open" aria-labelledby="h-open">
+  <h2 id="h-open"><span class="num">10</span>Open items</h2>
+  <ul class="open my">
+    <li><b>Phone speed &amp; memory</b> — PC ARM တွင်သာ တိုင်းရသေး။ "ဖတ်ပါ" မှ အသံထွက်ချိန်နှင့် အနိမ့်ဆုံး ဖုန်း (RAM/CPU) ကို သတ်မှတ်ရန်။</li>
+    <li><b>APK size after x86 removal</b> — မတိုင်းရသေး (ခန့်မှန်း arm64 split ~130–140 MB)။</li>
+    <li><b>Engine audio export</b> — Google TTS / SM Myanmar TTS တွင် ဖိုင်ထုတ်နိုင်မှု၊ ပထမ Play စောင့်ချိန်၊ online voice ၏ ကွဲပြားမှု မစမ်းရသေး။</li>
+    <li><b>Player on device</b> — position/pause/seek ကို audioplayers ဖုန်းအစစ်ဖြင့် မစမ်းရသေး။</li>
+    <li><b>Preset male_2 (Kyaw)</b> — လက်ဗွေ တူညီမှု 0.73 သာ၊ ဖုန်းပေါ် နားထောင်ပြီး ပြန်ဆုံးဖြတ်ရန်။</li>
+    <li><b>Regulatory</b> — ထုတ်ဝေမည့် ဈေးကွက်၊ accessibility၊ AI အသံ ဖော်ပြချက်၊ အခြားသူ၏ အသံ clone ခြင်းဆိုင်ရာ မူဝါဒ မသတ်မှတ်ရသေး။</li>
+    <li><b>Not persisted</b> — ဘာသာ/engine အသံ ရွေးချယ်မှုကို app ပြန်ဖွင့်လျှင် မမှတ်။</li>
+  </ul>
+</section>
+
+<section id="timeline" aria-labelledby="h-time">
+  <h2 id="h-time"><span class="num">11</span>Timeline</h2>
+  <ol class="timeline">
+    <li><span class="mono date">2026-10-22</span><span class="mono">af345ba</span><span>Speak Burmese via on-device Android engines (flutter_tts)</span></li>
+    <li><span class="mono date">2026-10-22</span><span class="mono">1be4bf4</span><span>Listening samples: 5 size/step variants</span></li>
+    <li><span class="mono date">2026-10-22</span><span class="mono">51c9630</span><span>MyanmarTTS on-device via ONNX Runtime</span></li>
+    <li><span class="mono date">2026-10-22</span><span class="mono">59aca59</span><span>Download spoken audio as WAV</span></li>
+    <li><span class="mono date">2026-10-22</span><span class="mono">26b07e6</span><span>Steps and CFG sliders</span></li>
+    <li><span class="mono date">2026-10-22</span><span class="mono">db897a8</span><span>Waveform of generated audio</span></li>
+    <li><span class="mono date">2026-10-22</span><span class="mono">07a0d78</span><span>Replay with a Play button</span></li>
+    <li><span class="mono date">2026-10-22</span><span class="mono">b436f31</span><span>Candidate preset voices from FLEURS</span></li>
+    <li><span class="mono date">2026-10-22</span><span class="mono">f0ef89b</span><span>Preset and recorded voices (v2 speaker-input graphs)</span></li>
+    <li><span class="mono date">2026-10-23</span><span class="mono">f2c075e</span><span>Drop x86 native libraries (APK size)</span></li>
+    <li><span class="mono date">2026-10-23</span><span class="mono">a4f9b03</span><span>All engines + languages, player, audio from every engine</span></li>
+    <li><span class="mono date">2026-10-23</span><span class="mono">cad960e</span><span>Choose a voice for Android engines</span></li>
+  </ol>
+</section>
+
+<section id="code" aria-labelledby="h-code">
+  <h2 id="h-code"><span class="num">12</span>Code map</h2>
+  <div class="codemap">
+    <div><b>lib/myanmartts/</b><code>burmese_tokenizer · length_regulator · fft · inverse_stft · magnitude_stft · text_chunker · wav_encoder · wav_decoder · waveform_summary · onnx_myanmar_tts_models · myanmar_tts_speaker</code></div>
+    <div><b>lib/providers/</b><code>burmese_speech_controller · voice_controller · voice_recording_controller</code></div>
+    <div><b>lib/services/</b><code>tts_service · flutter_tts_service · audio_output · audioplayers_audio_output · audio_file_saver · file_voice_library · record_voice_recorder</code></div>
+    <div><b>lib/screens/ · lib/widgets/</b><code>burmese_speech_screen · record_voice_sheet · voice_section · waveform_view · app_button</code></div>
+    <div><b>tools/myanmartts_onnx/</b><code>export_onnx · verify_onnx · quantize · quant_error · render_sample · dump_parity · make_dart_fixtures · fetch_fleurs_clips · voice_presets</code></div>
+    <div><b>docs/</b><code>adr/0001–0005 · burmese-tts/design-inputs · myanmartts-onnx/design-inputs · listening/ · voices/</code></div>
+  </div>
+</section>
+
+<footer class="my">RNDTextToSpeech R&amp;D · freococo/MyanmarTTS (CC0) · Vocos (MIT) · Google FLEURS (CC BY 4.0)။ အထွေထွေ ရှင်းလင်းချက် — <a href="rnd-overview.html">rnd-overview.html</a>။</footer>
+</main>
+</div>
+</body>
+</html>

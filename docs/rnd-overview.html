@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="my">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Burmese Speech Flow</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Noto+Sans:wght@400;600&family=Noto+Sans+Myanmar:wght@400;600&display=swap">
+<style>
+/* Layout: one intro band, then two lanes side by side (Flow A amber / Flow B jade) that stack on phones. */
+:root {
+  --bg: #f5f7f6;
+  --surface: #ffffff;
+  --ink: #17231f;
+  --muted: #56645f;
+  --line: #d5ddd9;
+  --native: #b8741a;
+  --native-soft: #fbf0df;
+  --device: #0f7a5c;
+  --device-soft: #e1f2eb;
+  --font-display: "Bricolage Grotesque", "Noto Sans", system-ui, sans-serif;
+  --font-body: "Noto Sans", "Noto Sans Myanmar", "Myanmar Text", "Pyidaungsu", "Padauk", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101715; --surface: #18221f; --ink: #e6eeea; --muted: #9db0a8; --line: #2c3a35;
+    --native: #e8a64b; --native-soft: #2e2416; --device: #4cc79d; --device-soft: #12302a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101715; --surface: #18221f; --ink: #e6eeea; --muted: #9db0a8; --line: #2c3a35;
+  --native: #e8a64b; --native-soft: #2e2416; --device: #4cc79d; --device-soft: #12302a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.7 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.page { max-width: 1080px; margin: 0 auto; padding-block: 40px 56px; display: grid; gap: 36px; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: 1.45rem; font-weight: 800; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 65ch; }
+.my { font-family: "Noto Sans Myanmar", "Myanmar Text", "Pyidaungsu", "Padauk", var(--font-body); color: var(--muted); }
+.eyebrow { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+.intro { display: grid; gap: 14px; }
+
+/* The shared start: what the user does before the flows split. */
+.start {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 18px 20px; display: grid; gap: 12px;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 0.92rem; background: var(--bg); }
+.arrow-r { color: var(--muted); }
+
+.lanes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 760px) { .lanes { grid-template-columns: 1fr; } }
+.lane { border-radius: 16px; padding: 20px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.lane.native { background: var(--native-soft); }
+.lane.device { background: var(--device-soft); }
+.lane-head { display: grid; gap: 4px; }
+.tag { justify-self: start; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 6px; padding: 2px 8px; color: var(--surface); }
+.native .tag { background: var(--native); }
+.device .tag { background: var(--device); }
+
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: step; }
+ol.steps > li { counter-increment: step; position: relative; padding-left: 44px; padding-bottom: 18px; }
+ol.steps > li::before {
+  content: counter(step); position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; font: 600 0.9rem/1 var(--font-display); color: var(--surface);
+}
+ol.steps > li:not(:last-child)::after { content: ""; position: absolute; left: 14px; top: 32px; bottom: 2px; width: 2px; background: var(--line); }
+.native ol.steps > li::before { background: var(--native); }
+.device ol.steps > li::before { background: var(--device); }
+.step { background: var(--surface); border-radius: 12px; padding: 12px 14px; display: grid; gap: 4px; }
+.phase { font-family: var(--font-display); font-weight: 600; font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--device); padding: 6px 0 10px; }
+
+.branch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+@media (max-width: 420px) { .branch { grid-template-columns: 1fr; } }
+.branch div { border: 1px dashed var(--line); border-radius: 10px; padding: 8px 10px; font-size: 0.92rem; }
+.branch b { display: block; }
+
+.end { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; display: grid; gap: 10px; }
+.result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.result { display: grid; gap: 2px; }
+.result b { font-family: var(--font-display); }
+
+.compare { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 520px; background: var(--surface); border-radius: 12px; overflow: hidden; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--font-display); font-weight: 600; }
+thead th:nth-child(2) { color: var(--native); }
+thead th:nth-child(3) { color: var(--device); }
+tr:last-child td { border-bottom: 0; }
+
+footer { color: var(--muted); font-size: 0.88rem; display: grid; gap: 4px; }
+a { color: var(--device); }
+a:focus-visible { outline: 2px solid var(--device); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header class="intro">
+    <span class="eyebrow">R&amp;D · RNDTextToSpeech · Android</span>
+    <h1>How the app turns text into speech</h1>
+    <p>The app reads typed text aloud, in Burmese or any language a phone's speech engine supports. Speech can come from two places: an engine already installed on the phone, or our own Burmese voice model that runs inside the app.</p>
+    <p class="my">စာရိုက်ထည့်ပြီး "ဖတ်ပါ" နှိပ်လျှင် အသံထွက်ဖတ်ပေးသော app ဖြစ်သည်။ အသံကို ဖုန်းတွင် ရှိပြီးသား engine မှ သော်လည်းကောင်း၊ app ထဲတွင် ထည့်ထားသော ကိုယ်ပိုင် မြန်မာအသံ model မှ သော်လည်းကောင်း ထုတ်သည်။</p>
+  </header>
+
+  <section class="start" aria-labelledby="start-title">
+    <h2 id="start-title">You start the same way every time</h2>
+    <div class="chips" aria-label="Choices before speaking">
+      <span class="chip">Type text</span><span class="arrow-r" aria-hidden="true">→</span>
+      <span class="chip">Choose engine</span><span class="arrow-r" aria-hidden="true">→</span>
+      <span class="chip">Choose language</span><span class="arrow-r" aria-hidden="true">→</span>
+      <span class="chip">Choose voice</span><span class="arrow-r" aria-hidden="true">→</span>
+      <span class="chip">Speak</span>
+    </div>
+    <p class="my">စာထည့် → Engine ရွေး → ဘာသာရွေး → အသံရွေး → ဖတ်ပါ။ ပုံသေ engine သည် MyanmarTTS ဖြစ်သည်။ ထို့နောက် ရွေးထားသော engine အလိုက် လမ်းကြောင်း နှစ်ခု ခွဲသွားသည်။</p>
+  </section>
+
+  <div class="lanes">
+    <section class="lane native" aria-labelledby="flow-a">
+      <div class="lane-head">
+        <span class="tag">Flow A</span>
+        <h2 id="flow-a">Phone's own speech engine</h2>
+        <p class="my">Google TTS၊ SM Myanmar TTS ကဲ့သို့ ဖုန်းတွင် ထည့်ထားသော engine</p>
+      </div>
+      <ol class="steps">
+        <li><div class="step"><h3>The app finds every installed engine</h3><p class="my">ဖုန်းတွင်ရှိသော engine အားလုံးကို စစ်ထုတ်ခြင်းမရှိဘဲ ပြသည်။</p></div></li>
+        <li><div class="step"><h3>You pick a language and a voice</h3><p class="my">Engine ပံ့ပိုးသော ဘာသာများနှင့် ထိုဘာသာ၏ အသံများ (Voice 1၊ 2…) ထဲမှ ရွေးသည်။</p></div></li>
+        <li><div class="step"><h3>The engine reads aloud straight away</h3><p class="my">"ဖတ်ပါ" နှိပ်သည်နှင့် engine က ချက်ချင်း ဖတ်သည်။ စောင့်စရာ မလို။</p></div></li>
+        <li>
+          <div class="step">
+            <h3>Want to replay or download? Tap Play or Download</h3>
+            <p class="my">ထိုအခါမှ engine ကို တူညီသောစာ ထပ်ဖတ်ခိုင်းပြီး အသံဖိုင် ထုတ်သည် (မလိုဘဲ နှစ်ခါ မလုပ်စေရန်)။</p>
+            <div class="branch">
+              <div><b>Engine can give its audio</b><span class="my">Waveform၊ ပြန်ဖွင့်ခြင်း၊ ဒေါင်းလုဒ် ရသည်။</span></div>
+              <div><b>Engine can't</b><span class="my">အကြောင်းရင်း ပြပြီး Play/Download ကို ဖျောက်သည်။ ဖတ်ခြင်းကို ဆက်သုံးနိုင်သည်။</span></div>
+            </div>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="lane device" aria-labelledby="flow-b">
+      <div class="lane-head">
+        <span class="tag">Flow B</span>
+        <h2 id="flow-b">MyanmarTTS inside the app</h2>
+        <p class="my">Hugging Face ပေါ်ရှိ freococo/MyanmarTTS ကို ဖုန်းပေါ်တွင် run နိုင်အောင် ပြောင်းထားသည်</p>
+      </div>
+
+      <div class="phase">Done once, by us, on a computer</div>
+      <ol class="steps">
+        <li><div class="step"><h3>Take the open Burmese voice model</h3><p class="my">freococo/MyanmarTTS (public domain၊ CC0) ကို ယူသည်။ မူလက Python ဖြင့်သာ run နိုင်သည်။</p></div></li>
+        <li><div class="step"><h3>Convert it to a phone-friendly format (ONNX)</h3><p class="my">ဖုန်းပေါ်တွင် run နိုင်သော ONNX ဖိုင်များအဖြစ် ပြောင်းပြီး မူရင်းနှင့် အသံတူကြောင်း စစ်သည်။</p></div></li>
+        <li><div class="step"><h3>Shrink it without hurting the sound</h3><p class="my">174 MB မှ ~104 MB သို့ ချုံ့သည်။ ဗားရှင်း ၅ မျိုးကို နားထောင်ပြီး အကောင်းဆုံးကို ရွေးသည်။</p></div></li>
+        <li><div class="step"><h3>Prepare 9 ready-made voices</h3><p class="my">မူလအသံ Thiri နှင့် ကျား ၄ / မ ၄ (Google FLEURS အသံဖမ်းချက်များမှ)။</p></div></li>
+      </ol>
+
+      <div class="phase">Every time you tap Speak, on the phone</div>
+      <ol class="steps">
+        <li><div class="step"><h3>Split the text into sentences</h3><p class="my">စာရှည်ကို ဝါကျအလိုက် ခွဲသည်။ Internet မလို — စာသည် ဖုန်းအပြင် မထွက်။</p></div></li>
+        <li><div class="step"><h3>The model turns each sentence into sound</h3><p class="my">ရွေးထားသော အသံ (သို့မဟုတ် ကိုယ်တိုင် အသံသွင်းထားသော အသံ) ဖြင့် ထုတ်သည်။</p></div></li>
+        <li><div class="step"><h3>Plays while the next sentence is being made</h3><p class="my">ဝါကျ ၁ ဖွင့်နေစဉ် ဝါကျ ၂ ကို ကြိုထုတ်ထားသဖြင့် ဆက်တိုက် ကြားရသည်။ Waveform တဖြည်းဖြည်း ပေါ်လာသည်။</p></div></li>
+        <li><div class="step"><h3>Replay, pause, seek or download</h3><p class="my">ပြီးလျှင် ပြန်ဖွင့်၊ ခေတ္တရပ်၊ waveform ပေါ်နှိပ်၍ ရွှေ့၊ WAV ဖိုင် ဒေါင်းလုဒ် လုပ်နိုင်သည်။</p></div></li>
+      </ol>
+    </section>
+  </div>
+
+  <section class="end" aria-labelledby="end-title">
+    <h2 id="end-title">Where both flows end up</h2>
+    <div class="result-grid">
+      <div class="result"><b>Hear it</b><span class="my">အသံထွက်ဖတ်သည်</span></div>
+      <div class="result"><b>See it</b><span class="my">Waveform နှင့် ဖွင့်နေသော နေရာ</span></div>
+      <div class="result"><b>Control it</b><span class="my">ပြန်ဖွင့်၊ ခေတ္တရပ်၊ ရွှေ့</span></div>
+      <div class="result"><b>Keep it</b><span class="my">WAV ဖိုင်အဖြစ် ဒေါင်းလုဒ်</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="compare-title" style="display:grid;gap:12px">
+    <h2 id="compare-title">Which flow to use</h2>
+    <div class="compare">
+      <table>
+        <thead><tr><th scope="col"></th><th scope="col">Flow A · phone engine</th><th scope="col">Flow B · MyanmarTTS</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Languages</th><td>Any language the engine has</td><td>Burmese only</td></tr>
+          <tr><th scope="row">Burmese</th><td>Only if a Burmese engine is installed</td><td>Always, built in</td></tr>
+          <tr><th scope="row">Internet</th><td>Some voices need it</td><td>Never</td></tr>
+          <tr><th scope="row">Starts speaking</th><td>Instantly</td><td>After the first sentence is made</td></tr>
+          <tr><th scope="row">Voices</th><td>The engine's voices</td><td>9 presets + your own recorded voice</td></tr>
+          <tr><th scope="row">Replay &amp; download</th><td>If the engine can give its audio</td><td>Always</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <span>RNDTextToSpeech R&amp;D · 22–23 October 2026 · Flutter app for Android</span>
+    <span class="my">Model: freococo/MyanmarTTS (CC0)။ Preset အသံ: Google FLEURS (CC BY 4.0)။ နည်းပညာ အသေးစိတ်ကို <a href="rnd-technical-report.html">rnd-technical-report.html</a> တွင် ကြည့်ပါ။</span>
+  </footer>
+</main>
+</body>
+</html>
