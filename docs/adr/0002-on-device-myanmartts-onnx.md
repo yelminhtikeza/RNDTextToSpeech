@@ -48,7 +48,12 @@ product owner က ဆုံးဖြတ်ခဲ့သည်။ ထို model 
 
 ## Consequences
 
-- APK သည် model ~97 MB + ORT native library ကြောင့် ကြီးလာမည်။ ABI split မလုပ်ရသေးပါ။
+- APK အရွယ် — universal release APK (CPU ၄ မျိုး) ကို တိုင်းကြည့်ရာ **227.8 MB** (2026-10-22)။ Model ~104 MB သည် အားလုံးမျှသုံးပြီး
+  ကျန်သည် ONNX Runtime + Flutter engine ကို CPU တစ်မျိုးစီအတွက် ထပ်ထည့်ထားခြင်း ဖြစ်သည်။ ဖုန်းအစစ်မရှိသော x86/x86_64 ကို
+  `android/app/build.gradle.kts` ၏ `packaging.jniLibs.excludes` ဖြင့် ဖယ်ထားသည်။ ထုတ်ရန် —
+  `flutter build apk --release --target-platform android-arm,android-arm64 --split-per-abi` (ဖုန်းအမျိုးအစားအလိုက် APK)
+  သို့မဟုတ် Play အတွက် `flutter build appbundle` (Play က ဖုန်း၏ CPU အတွက်သာ ပို့ပေးသည်)။
+  ⚠️ ဖယ်ပြီးနောက် အရွယ်အစားကို မတိုင်းရသေးပါ (ဤစက်တွင် Android build မရ)။
 - Pitch ထိန်းချုပ်မှု MyanmarTTS တွင် မရ (Android engine တွင်သာ)။ အမြန်နှုန်းကို duration scale ဖြင့် ပြောင်းသည်။
 - အသံတစ်မျိုး (အမျိုးသမီး) သာ ရှိသည်။
 - ⚠️ ဖုန်းအစစ်ပေါ်တွင် အမြန်နှုန်းနှင့် memory ကို မတိုင်းရသေးပါ — PC ARM CPU (thread 4) တွင် အသံ 4.9 စက္ကန့်ကို 5.3 စက္ကန့်။

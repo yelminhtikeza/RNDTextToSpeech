@@ -30,6 +30,15 @@ android {
         versionName = flutter.versionName
     }
 
+    // x86/x86_64 သည် PC emulator အတွက်သာ — ဖုန်းအစစ်မရှိဘဲ ONNX Runtime + Flutter engine ကြောင့် APK ကို ~50–60 MB တိုးစေသည်။
+    // `ndk.abiFilters` ကို မသုံးခြင်းမှာ `flutter build apk --split-per-abi` (splits.abi) နှင့် ပဋိပက္ခဖြစ်သောကြောင့်။
+    // x86_64 emulator ဖြင့် စမ်းလိုပါက ဤ exclude ကို ယာယီ ဖယ်ပါ (Apple silicon emulator သည် arm64 ဖြစ်၍ မလို)။
+    packaging {
+        jniLibs {
+            excludes += listOf("lib/x86/**", "lib/x86_64/**")
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
