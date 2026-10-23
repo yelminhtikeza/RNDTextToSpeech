@@ -94,26 +94,13 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
                 ),
               ],
             ),
-            if (!speechState.waveform.isEmpty) ...<Widget>[
+            if (speechState.isPreparingAudio) ...<Widget>[
               const SizedBox(height: AppTheme.SPACING),
-              WaveformView(peaks: speechState.waveform.peaks),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      l10n.generatedAudioDuration(_formatSeconds(duration: speechState.waveform.duration)),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                  AppButton(
-                    label: l10n.playButton,
-                    icon: Icons.play_arrow,
-                    variant: AppButtonVariant.outlined,
-                    isLoading: speechState.isReplaying,
-                    onPressed: speechState.canReplay ? controller.replayGeneratedAudio : null,
-                  ),
-                ],
-              ),
+              _ProgressMessage(message: l10n.statusPreparingAudio),
+            ],
+            if (!speechState.waveform.isEmpty || speechState.hasRenderableSpeech) ...<Widget>[
+              const SizedBox(height: AppTheme.SPACING),
+              _AudioPlayerPanel(speechState: speechState, controller: controller),
             ],
             if (speechState.supportsDownload) ...<Widget>[
               const SizedBox(height: AppTheme.SPACING),
@@ -124,7 +111,7 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
                 isLoading: speechState.isSavingAudio,
                 onPressed: speechState.canDownload ? () => _downloadAudio(controller: controller, l10n: l10n) : null,
               ),
-              if (!speechState.hasDownloadableAudio)
+              if (!speechState.hasPlayableAudio && !speechState.isPreparingAudio)
                 Text(l10n.downloadHint, style: Theme.of(context).textTheme.bodySmall),
             ],
             const SizedBox(height: AppTheme.SPACING),
@@ -177,9 +164,6 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
     );
   }
 
-  static String _formatSeconds({required Duration duration}) =>
-      (duration.inMilliseconds / Duration.millisecondsPerSecond).toStringAsFixed(1);
-
   Future<void> _downloadAudio({
     required BurmeseSpeechController controller,
     required AppLocalizations l10n,
@@ -191,6 +175,8 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
       AudioSaveStatus.failed => result.platformMessage ?? l10n.downloadFailed,
       // အသုံးပြုသူကိုယ်တိုင် dialog ပိတ်ခြင်းဖြစ်၍ ဘာမျှ မပြပါ။
       AudioSaveStatus.cancelled => null,
+      // အကြောင်းရင်းကို စာထည့်ကွက်အောက်တွင် ပြပြီးဖြစ်သည်။
+      AudioSaveStatus.unavailable => null,
     };
     if (message != null) messenger.showSnackBar(SnackBar(content: Text(message)));
   }
@@ -208,7 +194,8 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
       SpeechError.speakFailed => speechState.platformMessage ?? l10n.errorSpeakFailed,
       // Engine အမှားများကို engine အပိုင်းတွင် ပြပြီးဖြစ်သည်။
       SpeechError.voiceUnavailable => l10n.errorVoiceUnavailable,
-      SpeechError.modelLoadFailed || SpeechError.languageUnavailable => null,
+      SpeechError.audioUnavailable => l10n.errorAudioUnavailable,
+      SpeechError.modelLoadFailed || SpeechError.languageUnavailable || SpeechError.noLanguages => null,
     };
   }
 }
@@ -255,6 +242,31 @@ class _EngineStatusSection extends StatelessWidget {
                 }
               : null,
         ),
+        if (speechState.languages.isNotEmpty) ...<Widget>[
+          const SizedBox(height: AppTheme.SPACING),
+          DropdownButtonFormField<String>(
+            key: ValueKey<String>('${speechState.selectedEngine}|${speechState.languages.join()}|'
+                '${speechState.selectedLanguage}'),
+            initialValue: speechState.selectedLanguage,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: l10n.languageLabel,
+              border: const OutlineInputBorder(),
+            ),
+            // Engine ပြန်ပေးသော BCP 47 tag ကို တိုက်ရိုက်ပြသည် — ဘာသာအမည် ပြောင်းရန် Dart/Flutter တွင် built-in မရှိ၍။
+            items: speechState.languages
+                .map((String language) => DropdownMenuItem<String>(
+                      value: language,
+                      child: Text(language, overflow: TextOverflow.ellipsis),
+                    ))
+                .toList(),
+            onChanged: speechState.canChooseLanguage
+                ? (String? language) {
+                    if (language != null) controller.selectLanguage(languageTag: language);
+                  }
+                : null,
+          ),
+        ],
         if (speechState.status == SpeechStatus.loadingModel) ...<Widget>[
           const SizedBox(height: AppTheme.SPACING),
           _ProgressMessage(message: l10n.statusLoadingModel),
@@ -262,16 +274,95 @@ class _EngineStatusSection extends StatelessWidget {
         if (speechState.status == SpeechStatus.engineUnavailable) ...<Widget>[
           const SizedBox(height: AppTheme.SPACING),
           _StatusMessage(
-            message: speechState.platformMessage ?? _engineErrorText(l10n: l10n, error: speechState.error),
-            onRetry: controller.detectBurmeseEngines,
+            message: speechState.platformMessage ?? _engineErrorText(l10n: l10n, speechState: speechState),
+            onRetry: controller.detectEngines,
           ),
         ],
       ],
     );
   }
 
-  String _engineErrorText({required AppLocalizations l10n, required SpeechError? error}) {
-    return error == SpeechError.modelLoadFailed ? l10n.errorModelLoadFailed : l10n.statusNoBurmeseEngine;
+  String _engineErrorText({required AppLocalizations l10n, required BurmeseSpeechState speechState}) {
+    return switch (speechState.error) {
+      SpeechError.modelLoadFailed => l10n.errorModelLoadFailed,
+      SpeechError.languageUnavailable => l10n.errorLanguageUnavailable(speechState.selectedLanguage ?? ''),
+      _ => l10n.errorNoLanguages,
+    };
+  }
+}
+
+/// ထုတ်ထားသော (သို့မဟုတ် ဖတ်နေဆဲ) အသံ၏ waveform၊ ဖွင့်နေသောနေရာ၊ အချိန်နှင့် Play/Pause ခလုတ်။
+/// Android engine ၏ ဖိုင်မထုတ်ရသေးသော အသံဆိုလျှင် Play ခလုတ်သာ ပြပြီး နှိပ်မှ ထုတ်သည်။
+class _AudioPlayerPanel extends StatelessWidget {
+  const _AudioPlayerPanel({required this.speechState, required this.controller});
+
+  static const int _SECONDS_PER_MINUTE = 60;
+  static const int _SECONDS_DIGITS = 2;
+  static const String _SECONDS_PAD = '0';
+
+  final BurmeseSpeechState speechState;
+  final BurmeseSpeechController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    if (speechState.waveform.isEmpty) {
+      return Align(alignment: AlignmentDirectional.centerEnd, child: _playPauseButton(l10n: l10n));
+    }
+    final Duration total = speechState.waveform.duration;
+    final Duration position = speechState.playbackPosition > total ? total : speechState.playbackPosition;
+    // မဖွင့်နေ၍ အစတွင်ရှိနေချိန်တွင် bar အားလုံးကို တစ်ရောင်တည်း ပြသည် (ဖွင့်ပြီးသားဟု မထင်ရစေရန်)။
+    final bool showsProgress = speechState.isPlayingAudio || position > Duration.zero;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        WaveformView(
+          peaks: speechState.waveform.downsampledPeaks(maxBars: MyanmarTtsConfig.WAVEFORM_BAR_COUNT),
+          progress: showsProgress && total > Duration.zero
+              ? position.inMicroseconds / total.inMicroseconds
+              : null,
+          onSeek: speechState.canSeek ? (double fraction) => controller.seekGeneratedAudio(fraction: fraction) : null,
+        ),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                l10n.playbackTime(_formatClock(duration: position), _formatClock(duration: total)),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            _playPauseButton(l10n: l10n),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// ဖွင့်နေစဉ် Pause/Resume၊ မဖွင့်နေစဉ် Play — ခလုတ်တစ်ခုတည်းကို နေရာတူ၌ ထား၍ လက်ချောင်း မရွှေ့ရ။
+  Widget _playPauseButton({required AppLocalizations l10n}) {
+    if (speechState.canPause) {
+      return AppButton(
+        label: speechState.isPaused ? l10n.resumeButton : l10n.pauseButton,
+        icon: speechState.isPaused ? Icons.play_arrow : Icons.pause,
+        variant: AppButtonVariant.outlined,
+        onPressed: controller.togglePause,
+      );
+    }
+    return AppButton(
+      label: l10n.playButton,
+      icon: Icons.play_arrow,
+      variant: AppButtonVariant.outlined,
+      // Download က ဖိုင်ထုတ်ခိုင်းထားလျှင် Download ခလုတ်တွင်သာ loading ပြသည်။
+      isLoading: speechState.isPreparingAudio && !speechState.isSavingAudio,
+      onPressed: speechState.canReplay ? () => controller.replayGeneratedAudio(startAt: speechState.playbackPosition) : null,
+    );
+  }
+
+  static String _formatClock({required Duration duration}) {
+    final int seconds = duration.inSeconds;
+    final String remainder = (seconds % _SECONDS_PER_MINUTE).toString().padLeft(_SECONDS_DIGITS, _SECONDS_PAD);
+    return '${seconds ~/ _SECONDS_PER_MINUTE}:$remainder';
   }
 }
 

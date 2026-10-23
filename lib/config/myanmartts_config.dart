@@ -53,11 +53,19 @@ abstract final class MyanmarTtsConfig {
   static const int INTRA_OP_THREADS = 4;
 
   /// Download လုပ်သော ဖိုင်အမည် — `<prefix><yyyyMMdd_HHmmss>.wav`။
-  static const String DOWNLOAD_FILE_PREFIX = 'myanmartts_';
+  /// Engine မရွေး တူညီသော prefix — Android engine ၏ အသံကိုလည်း download ပေးသောကြောင့် (ADR 0005)။
+  static const String DOWNLOAD_FILE_PREFIX = 'speech_';
   static const String DOWNLOAD_FILE_EXTENSION = '.wav';
   static const String DOWNLOAD_TIMESTAMP_PATTERN = 'yyyyMMdd_HHmmss';
   static const String WAV_MIME_TYPE = 'audio/wav';
 
-  /// Waveform တွင် ဆွဲမည့် bar အရေအတွက် — ဖုန်းအကျယ်တွင် bar တစ်ခု ~3 px ခန့်ဖြစ်စေရန်။
+  /// Waveform တွင် ဆွဲမည့် bar အများဆုံး အရေအတွက် — ဖုန်းအကျယ်တွင် bar တစ်ခု ~3 px ခန့်ဖြစ်စေရန်။
   static const int WAVEFORM_BAR_COUNT = 120;
+
+  /// အပိုင်းလိုက် ဖတ်နေစဉ် waveform ကို အပိုင်းတစ်ခုချင်း ဆက်ပေါင်းနိုင်ရန် bar ကို အချိန်နှုန်းဖြင့် တွက်သည်
+  /// (စုစုပေါင်း bar အရေအတွက် ပုံသေထားပါက အသံ အပြည့်မရမီ မတွက်နိုင်)။ ပြသချိန်တွင် [WAVEFORM_BAR_COUNT] သို့ ချုံ့သည်။
+  static const int WAVEFORM_BARS_PER_SECOND = 20;
+
+  /// Player က frame တိုင်း position ပို့သော်လည်း screen တစ်ခုလုံး rebuild မများစေရန် ဤထက် ပြောင်းမှသာ state ပြင်သည် (~10 fps)။
+  static const Duration PLAYBACK_POSITION_STEP = Duration(milliseconds: 100);
 }

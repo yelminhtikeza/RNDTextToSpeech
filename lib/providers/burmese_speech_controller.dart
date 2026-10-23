@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
@@ -43,10 +44,11 @@ final audioFileSaverProvider = Provider<AudioFileSaver>((Ref ref) => const FileD
 final burmeseSpeechControllerProvider =
     NotifierProvider<BurmeseSpeechController, BurmeseSpeechState>(BurmeseSpeechController.new);
 
-/// မြန်မာ အသံထွက်ခြင်း၏ business logic တစ်ခုတည်းသော နေရာ —
-/// engine ရှာဖွေခြင်း၊ input စစ်ဆေးခြင်း၊ ဖတ်ခြင်း/ရပ်ခြင်း။
+/// အသံထွက်ခြင်း၏ business logic တစ်ခုတည်းသော နေရာ —
+/// engine/ဘာသာ ရွေးခြင်း၊ input စစ်ဆေးခြင်း၊ ဖတ်ခြင်း/ရပ်ခြင်း။
 ///
-/// Engine နှစ်မျိုး ရှိသည် — ဖုန်းပေါ် MyanmarTTS (ပုံသေ) နှင့် အသုံးပြုသူ ထည့်သွင်းထားသော Android TTS engine များ (third-party)။
+/// Engine နှစ်မျိုး ရှိသည် — ဖုန်းပေါ် MyanmarTTS (ပုံသေ၊ မြန်မာသာ) နှင့် ထည့်သွင်းထားသော Android TTS engine အားလုံး
+/// (third-party၊ engine ပံ့ပိုးသည့် ဘာသာ မည်သည်ကိုမဆို ရွေးနိုင် — docs/adr/0004)။
 /// Android engine ကို fallback အဖြစ် ဆက်ထားခြင်းမှာ MyanmarTTS က အသံတစ်မျိုးတည်းသာ ရှိပြီး
 /// စက်အဟောင်းများတွင် နှေးနိုင်သောကြောင့် ဖြစ်သည် (docs/adr/0002)။
 class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
@@ -59,21 +61,34 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
   /// Download အတွက် နောက်ဆုံးဖတ်ခဲ့သော အသံ — MB အနည်းငယ်ရှိ၍ widget rebuild တိုင်း မကူးရန် state အပြင်တွင် ထားသည်။
   Uint8List? _downloadableAudio;
 
+  /// WAV ဖိုင်ထုတ်မှု မအောင်မြင်ခဲ့သော Android engine များ — ဖတ်တိုင်း အလကား မထုတ်စေရန် (app ဖွင့်ထားစဉ်သာ မှတ်)။
+  final Set<String> _enginesWithoutAudioExport = <String>{};
+
+  /// Android engine ဖြင့် အဆုံးထိ ဖတ်ခဲ့သော စာနှင့် ထိုအချိန်၏ နှုန်း/pitch — Play/Download နှိပ်မှ ကြားခဲ့သည့်အတိုင်း
+  /// ဖိုင်ထုတ်ရန် (slider ကို နောက်မှ ရွှေ့ထားလည်း)။
+  ({String text, double rate, double pitch})? _renderableSpeech;
+
+  /// ထုတ်နေသော engine အသံ၏ အမှတ်စဉ် — စာပြင်/ထပ်ဖတ်/engine ပြောင်းပြီးမှ ရောက်လာသော ဟောင်းနေသည့် ရလဒ်ကို လျစ်လျူရှုရန်။
+  int _audioGeneration = 0;
+
   TtsService get _tts => ref.read(ttsServiceProvider);
 
   OnDeviceSpeaker get _onDevice => ref.read(onDeviceSpeakerProvider);
 
   @override
   BurmeseSpeechState build() {
-    Future<void>.microtask(detectBurmeseEngines);
+    final StreamSubscription<Duration> positions = _onDevice.positionChanges.listen(_onPlaybackPosition);
+    ref.onDispose(positions.cancel);
+    Future<void>.microtask(detectEngines);
     return const BurmeseSpeechState.initial();
   }
 
-  /// Android engine တစ်ခုချင်းစီသို့ ပြောင်းပြီး မြန်မာဘာသာ ပံ့ပိုးမှုကို စစ်ကာ ဖုန်းပေါ် engine ၏ နောက်တွင် ထည့်သည်။
+  /// ထည့်သွင်းထားသော Android engine အားလုံးကို ဖုန်းပေါ် engine ၏ နောက်တွင် ထည့်ပြီး ဖုန်းပေါ် engine ကို ရွေးသည်။
+  /// Engine တစ်ခုချင်း ဘာသာကို ကြိုမစစ်တော့ပါ — ရွေးမှသာ ဘာသာစာရင်း ယူသဖြင့် app စဖွင့်ချိန် မြန်သည်။
   /// Android engine ရှာ၍ မရခြင်းသည် ဖုန်းပေါ် engine ရှိနေသဖြင့် အမှားမဟုတ်ပါ — log သာ ထုတ်သည်။
-  Future<void> detectBurmeseEngines() async {
+  Future<void> detectEngines() async {
     state = const BurmeseSpeechState.initial();
-    final List<String> systemEngines = await _detectSystemBurmeseEngines();
+    final List<String> systemEngines = await _detectSystemEngines();
     if (!ref.mounted) return;
     state = state.copyWith(engines: <String>[TtsConfig.ON_DEVICE_ENGINE_ID, ...systemEngines]);
     await selectEngine(engineName: TtsConfig.ON_DEVICE_ENGINE_ID);
@@ -86,6 +101,16 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
     } else {
       await _selectSystemEngine(engineName: engineName);
     }
+  }
+
+  /// Android engine ၏ ဘာသာ ပြောင်းသည်။ MyanmarTTS တွင် မြန်မာ တစ်ခုတည်းသာ ရှိ၍ ဤ method ကို မခေါ်ရပါ။
+  Future<void> selectLanguage({required String languageTag}) async {
+    if (state.isOnDeviceSelected || !state.languages.contains(languageTag)) return;
+    state = state.copyWith(status: SpeechStatus.detecting).withLanguages(
+          languages: state.languages,
+          selectedLanguage: languageTag,
+        );
+    await _applySystemLanguage(languageTag: languageTag);
   }
 
   void updateSpeechRate({required double rate}) {
@@ -124,11 +149,47 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
     }
   }
 
+  /// MyanmarTTS ဖတ်နေစဉ်/ပြန်ဖွင့်နေစဉ် ခေတ္တရပ်ခြင်း နှင့် ဆက်ဖွင့်ခြင်း။
+  Future<void> togglePause() async {
+    if (!state.canPause) return;
+    final bool willPause = !state.isPaused;
+    try {
+      if (willPause) {
+        await _onDevice.pause();
+      } else {
+        await _onDevice.resume();
+      }
+      if (!ref.mounted) return;
+      developer.log('action=${willPause ? 'pause' : 'resume'} result=ok', name: _LOG_NAME);
+      state = state.copyWith(isPaused: willPause);
+    } on AudioOutputException catch (error) {
+      _reportPlaybackFailure(platformMessage: error.platformMessage);
+    }
+  }
+
+  /// Waveform ပေါ်တွင် နှိပ်/ဆွဲသော နေရာ ([fraction] 0–1) သို့ ရွှေ့သည်။
+  /// ပြန်ဖွင့်နေစဉ်/ခေတ္တရပ်ထားစဉ်ဆိုလျှင် player ကို seek လုပ်ပြီး၊ မဖွင့်ရသေးလျှင် ထိုနေရာမှ စဖွင့်သည်။
+  Future<void> seekGeneratedAudio({required double fraction}) async {
+    if (!state.canSeek) return;
+    final Duration position = state.waveform.duration * fraction.clamp(0.0, 1.0);
+    if (!state.isReplaying) {
+      await replayGeneratedAudio(startAt: position);
+      return;
+    }
+    try {
+      await _onDevice.seek(position: position);
+      if (!ref.mounted) return;
+      state = state.copyWith(playbackPosition: position);
+    } on AudioOutputException catch (error) {
+      _reportPlaybackFailure(platformMessage: error.platformMessage);
+    }
+  }
+
   Future<void> stop() async {
     _isStopRequested = true;
-    if (state.isOnDeviceSelected) {
-      await _onDevice.stop();
-    } else {
+    // Android engine ၏ အသံကိုလည်း ဖိုင်ထုတ်ပြီးပါက app ၏ player ဖြင့် ဖွင့်သဖြင့် player ကိုပါ ရပ်ရသည်။
+    if (state.isOnDeviceSelected || state.isReplaying) await _onDevice.stop();
+    if (!state.isOnDeviceSelected) {
       try {
         await _tts.stop();
       } on TtsServiceException catch (error) {
@@ -137,19 +198,20 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
       }
     }
     if (!ref.mounted) return;
-    state = state.copyWith(status: SpeechStatus.ready);
+    state = state.copyWith(status: SpeechStatus.ready, isPaused: false, playbackPosition: Duration.zero);
   }
 
-  /// နောက်ဆုံးထုတ်ထားသော အသံကို ပြန်ဖွင့်သည် — model ကို ထပ်မ run သဖြင့် ချက်ချင်းစပြီး ကြားခဲ့သည့်အတိုင်း တူညီသည်။
-  Future<void> replayGeneratedAudio() async {
+  /// နောက်ဆုံးထုတ်ထားသော အသံကို [startAt] မှ ပြန်ဖွင့်သည် — model ကို ထပ်မ run သဖြင့် ချက်ချင်းစပြီး ကြားခဲ့သည့်အတိုင်း တူညီသည်။
+  Future<void> replayGeneratedAudio({Duration startAt = Duration.zero}) async {
+    if (!state.canReplay || !await _ensureGeneratedAudio()) return;
     final Uint8List? audio = _downloadableAudio;
-    if (audio == null || !state.canReplay) return;
-    state = state.copyWith(status: SpeechStatus.replaying);
+    if (audio == null || !ref.mounted) return;
+    state = state.copyWith(status: SpeechStatus.replaying, isPaused: false, playbackPosition: startAt);
     try {
-      await _onDevice.replay(wav: audio);
+      await _onDevice.replay(wav: audio, startAt: startAt);
       if (!ref.mounted) return;
-      developer.log('action=replay bytes=${audio.length} result=ok', name: _LOG_NAME);
-      state = state.copyWith(status: SpeechStatus.ready);
+      developer.log('action=replay bytes=${audio.length} start_ms=${startAt.inMilliseconds} result=ok', name: _LOG_NAME);
+      state = state.copyWith(status: SpeechStatus.ready, isPaused: false, playbackPosition: Duration.zero);
     } on AudioOutputException catch (error) {
       _reportSpeakFailure(platformMessage: error.platformMessage);
     }
@@ -157,19 +219,32 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
 
   /// စာပြင်လိုက်လျှင် ယခင်အသံသည် စာနှင့် မကိုက်တော့သဖြင့် download မပေးတော့ရန်။
   void discardGeneratedAudio() {
-    if (_downloadableAudio == null && !state.hasDownloadableAudio) return;
+    _cancelAudioPreparation();
+    if (_downloadableAudio == null && _renderableSpeech == null && !state.hasPlayableAudio) return;
     _downloadableAudio = null;
-    state = state.copyWith(hasDownloadableAudio: false, waveform: WaveformSummary.empty);
+    _renderableSpeech = null;
+    state = state.copyWith(
+      hasDownloadableAudio: false,
+      hasRenderableSpeech: false,
+      waveform: WaveformSummary.empty,
+      playbackPosition: Duration.zero,
+    );
   }
 
   /// နောက်ဆုံးဖတ်ခဲ့သော အသံကို WAV ဖိုင်အဖြစ် သိမ်းသည်။
   Future<AudioSaveResult> downloadAudio() async {
-    final Uint8List? audio = _downloadableAudio;
-    if (audio == null || !state.canDownload) {
-      return const AudioSaveResult(status: AudioSaveStatus.failed);
-    }
+    if (!state.canDownload) return const AudioSaveResult(status: AudioSaveStatus.failed);
+    // Download ခလုတ်ကို ဖိုင်ထုတ်နေစဉ်ကပင် loading ပြရန် အရင်သတ်မှတ်သည်။
     state = state.copyWith(isSavingAudio: true);
     try {
+      if (!await _ensureGeneratedAudio()) {
+        // စာပြင်/ထပ်ဖတ်၍ ဖိုင်ထုတ်ခြင်း ဖျက်သိမ်းခံရပါက ဘာမျှမပြ၊ engine က မပေးနိုင်မှသာ unavailable။
+        return AudioSaveResult(
+          status: state.supportsAudioExport ? AudioSaveStatus.cancelled : AudioSaveStatus.unavailable,
+        );
+      }
+      final Uint8List? audio = _downloadableAudio;
+      if (audio == null) return const AudioSaveResult(status: AudioSaveStatus.failed);
       final String? savedPath = await ref.read(audioFileSaverProvider).saveWav(wav: audio, fileName: _downloadFileName());
       developer.log('action=download bytes=${audio.length} result=${savedPath == null ? 'cancelled' : 'saved'}',
           name: _LOG_NAME);
@@ -177,8 +252,17 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
     } on AudioSaveException catch (error) {
       return AudioSaveResult(status: AudioSaveStatus.failed, platformMessage: error.platformMessage);
     } finally {
-      if (ref.mounted) state = state.copyWith(isSavingAudio: false);
+      if (ref.mounted) _finishSaving();
     }
+  }
+
+  /// copyWith သည် အမှားကို ရှင်းသဖြင့် ဖိုင်ထုတ်၍မရကြောင်း ([SpeechError.audioUnavailable]) ကို မပျောက်စေရန် ထိန်းထားသည်။
+  void _finishSaving() {
+    final BurmeseSpeechState saved = state.copyWith(isSavingAudio: false);
+    final SpeechError? error = state.error;
+    state = error == null
+        ? saved
+        : saved.withError(error: error, status: saved.status, platformMessage: state.platformMessage);
   }
 
   static String _downloadFileName() =>
@@ -193,18 +277,11 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
     return null;
   }
 
-  Future<List<String>> _detectSystemBurmeseEngines() async {
+  Future<List<String>> _detectSystemEngines() async {
     try {
       final List<String> engines = await _tts.getEngineNames();
-      final List<String> burmeseEngines = <String>[];
-      for (final String engine in engines) {
-        await _tts.selectEngine(engineName: engine);
-        if (await _tts.isLanguageAvailable(languageTag: TtsConfig.BURMESE_LANGUAGE_TAG)) {
-          burmeseEngines.add(engine);
-        }
-      }
-      developer.log('action=detect engines=$engines burmese=$burmeseEngines', name: _LOG_NAME);
-      return burmeseEngines;
+      developer.log('action=detect engines=$engines', name: _LOG_NAME);
+      return engines;
     } on TtsServiceException catch (error) {
       developer.log('action=detect result=failed', name: _LOG_NAME, error: error);
       return const <String>[];
@@ -212,11 +289,17 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
   }
 
   Future<void> _selectOnDeviceEngine() async {
-    state = state.copyWith(
-      status: SpeechStatus.loadingModel,
-      selectedEngine: TtsConfig.ON_DEVICE_ENGINE_ID,
-      maxInputLength: TtsConfig.MAX_INPUT_LENGTH_FALLBACK,
-    );
+    state = state
+        .copyWith(
+          status: SpeechStatus.loadingModel,
+          selectedEngine: TtsConfig.ON_DEVICE_ENGINE_ID,
+          maxInputLength: TtsConfig.MAX_INPUT_LENGTH_FALLBACK,
+          supportsAudioExport: true,
+        )
+        .withLanguages(
+          languages: const <String>[TtsConfig.BURMESE_LANGUAGE_TAG],
+          selectedLanguage: TtsConfig.BURMESE_LANGUAGE_TAG,
+        );
     try {
       await _onDevice.load();
       // အသံစာရင်း မရသေးမီ "ready" မဖြစ်စေရန် — မဟုတ်ပါက ချက်ချင်းနှိပ်လျှင် voiceUnavailable ဖြစ်မည်။
@@ -235,15 +318,56 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
   }
 
   Future<void> _selectSystemEngine({required String engineName}) async {
-    state = state.copyWith(status: SpeechStatus.detecting, selectedEngine: engineName);
+    state = state
+        .copyWith(
+          status: SpeechStatus.detecting,
+          selectedEngine: engineName,
+          supportsAudioExport: !_enginesWithoutAudioExport.contains(engineName),
+        )
+        .withLanguages(languages: const <String>[], selectedLanguage: null);
+    final List<String> languages;
     try {
       await _tts.selectEngine(engineName: engineName);
-      final bool isLanguageSet = await _tts.setLanguage(languageTag: TtsConfig.BURMESE_LANGUAGE_TAG);
+      languages = List<String>.of(await _tts.getLanguages())..sort();
       final int maxInputLength = await _tts.getMaxInputLength();
       if (!ref.mounted) return;
-      developer.log('action=selectEngine engine=$engineName languageSet=$isLanguageSet', name: _LOG_NAME);
+      state = state.copyWith(maxInputLength: maxInputLength);
+    } on TtsServiceException catch (error) {
+      if (!ref.mounted) return;
+      state = state.withError(
+        error: SpeechError.noLanguages,
+        status: SpeechStatus.engineUnavailable,
+        platformMessage: error.platformMessage,
+      );
+      return;
+    }
+    developer.log('action=selectEngine engine=$engineName languages=${languages.length}', name: _LOG_NAME);
+    if (languages.isEmpty) {
+      state = state.withError(error: SpeechError.noLanguages, status: SpeechStatus.engineUnavailable);
+      return;
+    }
+    final String defaultLanguage = _defaultLanguageOf(languages: languages);
+    state = state.withLanguages(languages: languages, selectedLanguage: defaultLanguage);
+    await _applySystemLanguage(languageTag: defaultLanguage);
+  }
+
+  /// မြန်မာ ပါပါက မြန်မာ (app ၏ အဓိက အသုံးပြုသူ)၊ မပါပါက အက္ခရာစဉ် ပထမ ဘာသာ။
+  static String _defaultLanguageOf({required List<String> languages}) {
+    if (languages.contains(TtsConfig.BURMESE_LANGUAGE_TAG)) return TtsConfig.BURMESE_LANGUAGE_TAG;
+    return languages.firstWhere(_isBurmese, orElse: () => languages.first);
+  }
+
+  static bool _isBurmese(String languageTag) =>
+      languageTag.split(TtsConfig.LANGUAGE_TAG_SEPARATOR).first == TtsConfig.BURMESE_LANGUAGE_CODE;
+
+  Future<void> _applySystemLanguage({required String languageTag}) async {
+    try {
+      final bool isLanguageSet = await _tts.setLanguage(languageTag: languageTag);
+      if (!ref.mounted) return;
+      developer.log('action=selectLanguage engine=${state.selectedEngine} language=$languageTag '
+          'result=$isLanguageSet', name: _LOG_NAME);
       state = isLanguageSet
-          ? state.copyWith(status: SpeechStatus.ready, maxInputLength: maxInputLength)
+          ? state.copyWith(status: SpeechStatus.ready)
           : state.withError(error: SpeechError.languageUnavailable, status: SpeechStatus.engineUnavailable);
     } on TtsServiceException catch (error) {
       if (!ref.mounted) return;
@@ -265,6 +389,10 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
       // Slider ၏ speech rate (0.5 = ပုံမှန်) ကို duration multiplier အဖြစ် ပြောင်းသည် — rate မြင့်လေ အသံတိုလေ။
       final SpokenAudio? audio = await _onDevice.speak(
         text: text,
+        // အပိုင်းတစ်ခု စဖွင့်တိုင်း waveform ကို ချဲ့ပြသဖြင့် ဖတ်နေစဉ် ဘယ်နေရာ ရောက်နေကြောင်း မြင်ရသည်။
+        onWaveformChanged: (WaveformSummary waveform) {
+          if (ref.mounted && state.isSpeaking) state = state.copyWith(waveform: waveform);
+        },
         settings: SynthesisSettings(
           lengthScale: TtsConfig.SPEECH_RATE_DEFAULT / state.speechRate,
           speaker: voice.embedding,
@@ -280,6 +408,8 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
         status: SpeechStatus.ready,
         hasDownloadableAudio: audio != null,
         waveform: audio?.waveform ?? WaveformSummary.empty,
+        playbackPosition: Duration.zero,
+        isPaused: false,
       );
     } on MyanmarTtsException catch (error) {
       _reportSpeakFailure(platformMessage: error.platformMessage);
@@ -288,9 +418,13 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
     }
   }
 
+  /// WAV ဖိုင်ထုတ်နိုင်သော engine ဆိုလျှင် ဖိုင်ထုတ်ပြီး app ၏ player ဖြင့် ဖွင့်သည် (waveform/pause/seek/download ရ)။
+  /// မထုတ်နိုင်ပါက ထို engine ကို မှတ်ထားပြီး engine ကိုယ်တိုင် speaker သို့ ဖတ်စေသည် (fallback)။
+  /// Engine ကို ချက်ချင်း အသံထွက်ဖတ်စေပြီး (မစောင့်ရ) အဆုံးထိ ဖတ်ပြီးမှ တူညီသောစာကို နောက်ကွယ်တွင် WAV ဖိုင်သို့ ထပ်ထုတ်ကာ
+  /// waveform/player/download ပေးသည်။ Android သည် engine ဖတ်နေသော အသံကို app သို့ မပေးသဖြင့် ထပ်ထုတ်ရခြင်း ဖြစ်သည် (ADR 0005)။
   Future<void> _speakWithSystemEngine({required String text}) async {
     try {
-      // Slider ရွှေ့တိုင်း platform ကို မခေါ်ဘဲ ဖတ်ခါနီးမှ တစ်ကြိမ်သာ သတ်မှတ်သည်။
+      // Slider ရွှေ့တိုင်း platform ကို မခေါ်ဘဲ ဖတ်ခါနီးမှ တစ်ကြိမ်သာ သတ်မှတ်သည် — နောက်ဖိုင်ထုတ်ရာတွင်လည်း သက်ရောက်သည်။
       await _tts.setSpeechRate(rate: state.speechRate);
       await _tts.setPitch(pitch: state.pitch);
       final bool isSpoken = await _tts.speak(text: text);
@@ -299,18 +433,105 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
         'action=speak length=${text.length} engine=${state.selectedEngine} result=$isSpoken',
         name: _LOG_NAME,
       );
-      state = isSpoken || _isStopRequested
-          ? state.copyWith(status: SpeechStatus.ready)
-          : state.withError(error: SpeechError.speakFailed, status: SpeechStatus.ready);
+      // ရပ်လိုက်သော အသံကို ပြန်ဖွင့်/download မပေး (MyanmarTTS နည်းတူ — ကြားခဲ့သည်နှင့် မကိုက်)။
+      if (_isStopRequested) return;
+      if (!isSpoken) {
+        state = state.withError(error: SpeechError.speakFailed, status: SpeechStatus.ready);
+        return;
+      }
+      if (state.supportsAudioExport) {
+        _renderableSpeech = (text: text, rate: state.speechRate, pitch: state.pitch);
+      }
+      state = state.copyWith(status: SpeechStatus.ready, hasRenderableSpeech: _renderableSpeech != null);
     } on TtsServiceException catch (error) {
       _reportSpeakFailure(platformMessage: error.platformMessage);
     }
   }
 
+  /// ထုတ်ပြီးသား အသံ ရှိ/မရှိ — Android engine ၏ ဖတ်ခဲ့သောစာ ဆိုလျှင် ယခုမှ ဖိုင်ထုတ်သည် (option C၊ ADR 0005)။
+  /// ဖိုင်ထုတ်မှု မရပါက engine ကို မှတ်ထားပြီး Play/Download ကို ဖျောက်ကာ အကြောင်းရင်း ပြသည်။
+  Future<bool> _ensureGeneratedAudio() async {
+    if (_downloadableAudio != null) return true;
+    final ({String text, double rate, double pitch})? speech = _renderableSpeech;
+    if (speech == null) return false;
+    final int generation = ++_audioGeneration;
+    state = state.copyWith(isPreparingAudio: true);
+    SpokenAudio? audio;
+    try {
+      await _tts.setSpeechRate(rate: speech.rate);
+      await _tts.setPitch(pitch: speech.pitch);
+      audio = await _exportSystemAudio(text: speech.text);
+    } on TtsServiceException catch (error) {
+      developer.log('action=exportAudio result=failed', name: _LOG_NAME, error: error);
+    }
+    if (!ref.mounted || generation != _audioGeneration) return false;
+    _renderableSpeech = null;
+    if (audio == null) {
+      final String? engine = state.selectedEngine;
+      if (engine != null) _enginesWithoutAudioExport.add(engine);
+      state = state
+          .copyWith(isPreparingAudio: false, hasRenderableSpeech: false, supportsAudioExport: false)
+          .withError(error: SpeechError.audioUnavailable, status: state.status);
+      return false;
+    }
+    _downloadableAudio = audio.wav;
+    state = state.copyWith(
+      isPreparingAudio: false,
+      hasRenderableSpeech: false,
+      hasDownloadableAudio: true,
+      waveform: audio.waveform,
+    );
+    return true;
+  }
+
+  /// ထုတ်နေဆဲ ဖိုင်ကို ရပ်ပြီး ရလဒ်ကို လျစ်လျူရှုသည် — နောက် speak သည် engine ၏ queue တွင် ဖိုင်ထုတ်မှုနောက်၌ မစောင့်ရစေရန်။
+  void _cancelAudioPreparation() {
+    _audioGeneration++;
+    if (!state.isPreparingAudio) return;
+    state = state.copyWith(isPreparingAudio: false);
+    unawaited(_stopSystemEngineQuietly());
+  }
+
+  Future<void> _stopSystemEngineQuietly() async {
+    try {
+      await _tts.stop();
+    } on TtsServiceException catch (error) {
+      // ဖိုင်ထုတ်ခြင်းကို ရပ်၍မရလည်း ရလဒ်ကို လျစ်လျူရှုပြီးဖြစ်၍ log သာ ထုတ်သည်။
+      developer.log('action=cancelAudioPreparation result=failed', name: _LOG_NAME, error: error);
+    }
+  }
+
+  /// ဖိုင်ထုတ်မှု platform အမှားကိုလည်း "မပံ့ပိုး" အဖြစ်သာ ယူသည် — speak ဖြင့် ဆက်ဖတ်နိုင်သေးသဖြင့် အသုံးပြုသူကို အမှား မပြ။
+  Future<SpokenAudio?> _exportSystemAudio({required String text}) async {
+    try {
+      final SpokenAudio? audio = await _tts.synthesizeAudio(text: text);
+      developer.log('action=exportAudio engine=${state.selectedEngine} result=${audio == null ? 'unavailable' : 'ok'}',
+          name: _LOG_NAME);
+      return audio;
+    } on TtsServiceException catch (error) {
+      developer.log('action=exportAudio engine=${state.selectedEngine} result=failed', name: _LOG_NAME, error: error);
+      return null;
+    }
+  }
+
+  /// Frame တိုင်း မဟုတ်ဘဲ [MyanmarTtsConfig.PLAYBACK_POSITION_STEP] ထက် ပြောင်းမှသာ state ပြင်သည်။
+  void _onPlaybackPosition(Duration position) {
+    if (!ref.mounted || !state.isAppPlayerActive) return;
+    if ((position - state.playbackPosition).abs() < MyanmarTtsConfig.PLAYBACK_POSITION_STEP) return;
+    state = state.copyWith(playbackPosition: position);
+  }
+
+  /// Pause/seek မအောင်မြင်ခြင်းသည် ဖွင့်ခြင်းကို မရပ်စေသဖြင့် status ကို မပြောင်းဘဲ အမှားသာ ပြသည်။
+  void _reportPlaybackFailure({required String? platformMessage}) {
+    if (!ref.mounted) return;
+    developer.log('action=playbackControl result=failed', name: _LOG_NAME);
+    state = state.withError(error: SpeechError.speakFailed, status: state.status, platformMessage: platformMessage);
+  }
+
   void _reportSpeakFailure({required String? platformMessage}) {
     if (!ref.mounted) return;
     developer.log('action=speak engine=${state.selectedEngine} result=failed', name: _LOG_NAME);
-    state = state.withError(
+    state = state.copyWith(isPaused: false, playbackPosition: Duration.zero).withError(
       error: SpeechError.speakFailed,
       status: SpeechStatus.ready,
       platformMessage: platformMessage,

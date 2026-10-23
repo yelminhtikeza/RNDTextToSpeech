@@ -12,10 +12,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'Burmese Text to Speech';
 
   @override
-  String get inputLabel => 'Burmese text';
+  String get inputLabel => 'Text';
 
   @override
-  String get inputHint => 'Type or paste Burmese (Unicode) text';
+  String get inputHint => 'Type or paste the text to read aloud';
 
   @override
   String get sampleText => 'မင်္ဂလာပါ။ မြန်မာစာကို အသံဖြင့် ဖတ်ပြနေပါသည်။';
@@ -33,20 +33,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get engineLabel => 'Speech engine';
 
   @override
+  String get languageLabel => 'Language';
+
+  @override
+  String get errorNoLanguages =>
+      'This speech engine did not report any languages. Choose another engine, or check its settings and try again.';
+
+  @override
+  String errorLanguageUnavailable(String language) {
+    return 'This speech engine cannot speak $language. Choose another language or engine.';
+  }
+
+  @override
   String get speechRateLabel => 'Speed';
 
   @override
   String get pitchLabel => 'Pitch';
 
   @override
-  String get statusDetecting => 'Looking for an engine that speaks Burmese…';
+  String get statusDetecting => 'Looking for speech engines…';
 
   @override
-  String get statusNoBurmeseEngine =>
-      'This speech engine does not support Burmese (my-MM). Choose another engine, or install a Burmese TTS engine and check again.';
-
-  @override
-  String get errorEmptyText => 'Enter some Burmese text first.';
+  String get errorEmptyText => 'Enter some text first.';
 
   @override
   String errorTextTooLong(int maxLength) {
@@ -87,6 +95,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadHint => 'Speak the text first to download its audio.';
 
   @override
+  String get statusPreparingAudio => 'Preparing the audio…';
+
+  @override
+  String get errorAudioUnavailable =>
+      'This speech engine cannot provide its audio, so it cannot be replayed or downloaded.';
+
+  @override
   String get flowStepsLabel => 'Steps';
 
   @override
@@ -101,12 +116,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'How strictly the voice follows the text. 1 can drift or mumble, about 3 is balanced, and 4–5 is sharper but can sound strained.';
 
   @override
-  String generatedAudioDuration(String seconds) {
-    return 'Generated audio · $seconds s';
+  String playbackTime(String position, String duration) {
+    return '$position / $duration';
   }
 
   @override
   String get playButton => 'Play';
+
+  @override
+  String get pauseButton => 'Pause';
+
+  @override
+  String get resumeButton => 'Resume';
 
   @override
   String get voiceLabel => 'Voice';

@@ -1,18 +1,27 @@
 {
   "@@locale": "en",
   "appTitle": "Burmese Text to Speech",
-  "inputLabel": "Burmese text",
-  "inputHint": "Type or paste Burmese (Unicode) text",
+  "inputLabel": "Text",
+  "inputHint": "Type or paste the text to read aloud",
   "sampleText": "မင်္ဂလာပါ။ မြန်မာစာကို အသံဖြင့် ဖတ်ပြနေပါသည်။",
   "speakButton": "Speak",
   "stopButton": "Stop",
   "retryDetectionButton": "Check engines again",
   "engineLabel": "Speech engine",
+  "languageLabel": "Language",
+  "errorNoLanguages": "This speech engine did not report any languages. Choose another engine, or check its settings and try again.",
+  "errorLanguageUnavailable": "This speech engine cannot speak {language}. Choose another language or engine.",
+  "@errorLanguageUnavailable": {
+    "placeholders": {
+      "language": {
+        "type": "String"
+      }
+    }
+  },
   "speechRateLabel": "Speed",
   "pitchLabel": "Pitch",
-  "statusDetecting": "Looking for an engine that speaks Burmese…",
-  "statusNoBurmeseEngine": "This speech engine does not support Burmese (my-MM). Choose another engine, or install a Burmese TTS engine and check again.",
-  "errorEmptyText": "Enter some Burmese text first.",
+  "statusDetecting": "Looking for speech engines…",
+  "errorEmptyText": "Enter some text first.",
   "errorTextTooLong": "Text is too long. The engine accepts at most {maxLength} characters.",
   "@errorTextTooLong": {
     "placeholders": {
@@ -31,19 +40,26 @@
   "downloadSaved": "Audio saved.",
   "downloadFailed": "Could not save the audio.",
   "downloadHint": "Speak the text first to download its audio.",
+  "statusPreparingAudio": "Preparing the audio…",
+  "errorAudioUnavailable": "This speech engine cannot provide its audio, so it cannot be replayed or downloaded.",
   "flowStepsLabel": "Steps",
   "flowStepsHint": "More steps sound clearer but take longer to generate (time grows with the step count).",
   "cfgLabel": "CFG",
   "cfgHint": "How strictly the voice follows the text. 1 can drift or mumble, about 3 is balanced, and 4–5 is sharper but can sound strained.",
-  "generatedAudioDuration": "Generated audio · {seconds} s",
-  "@generatedAudioDuration": {
+  "playbackTime": "{position} / {duration}",
+  "@playbackTime": {
     "placeholders": {
-      "seconds": {
+      "position": {
+        "type": "String"
+      },
+      "duration": {
         "type": "String"
       }
     }
   },
   "playButton": "Play",
+  "pauseButton": "Pause",
+  "resumeButton": "Resume",
   "voiceLabel": "Voice",
   "customVoiceLabel": "{name} (recorded)",
   "@customVoiceLabel": {

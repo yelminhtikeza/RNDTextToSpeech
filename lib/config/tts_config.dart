@@ -1,9 +1,13 @@
-/// မြန်မာ TTS အတွက် ပုံသေတန်ဖိုးများ — code ထဲတွင် hard-code မလုပ်ရန် ဤနေရာ၌သာ စုထားသည်။
+/// TTS အတွက် ပုံသေတန်ဖိုးများ — code ထဲတွင် hard-code မလုပ်ရန် ဤနေရာ၌သာ စုထားသည်။
 abstract final class TtsConfig {
-  /// Android `Locale.forLanguageTag` သို့ ပို့မည့် မြန်မာ language tag။
-  /// Engine အချို့က "my" ကိုသာ မှတ်ပုံတင်ထားသော်လည်း country မတူလည်း
-  /// `isLanguageAvailable` သည် LANG_AVAILABLE (>= 0) ပြန်ပေးသဖြင့် "my-MM" တစ်ခုတည်း လုံလောက်သည်။
+  /// ဖုန်းပေါ် MyanmarTTS ဖတ်နိုင်သော ဘာသာ — model ကို မြန်မာစာဖြင့်သာ train ထားသည်။
   static const String BURMESE_LANGUAGE_TAG = 'my-MM';
+
+  /// Android engine ရွေးချိန်တွင် ဤဘာသာ (`my`၊ `my-MM` စသည်) ပါပါက ပုံသေ ရွေးပေးသည် — app ၏ အဓိက အသုံးပြုသူများ မြန်မာ ဖြစ်၍။
+  static const String BURMESE_LANGUAGE_CODE = 'my';
+
+  /// BCP 47 tag ၏ subtag ခွဲသည့် အမှတ်အသား (ဥပမာ `en-US`)။
+  static const String LANGUAGE_TAG_SEPARATOR = '-';
 
   /// flutter_tts သည် Android ၏ ပုံမှန်နှုန်း 1.0 ကို 0.5 အဖြစ် ပြောင်းထားသည် (plugin source ကြည့်ပါ)။
   static const double SPEECH_RATE_DEFAULT = 0.5;
@@ -26,4 +30,11 @@ abstract final class TtsConfig {
 
   /// flutter_tts `speak` သည် အောင်မြင်ပါက 1 ပြန်ပေးသည်။
   static const int PLATFORM_SUCCESS = 1;
+
+  /// Engine ကို WAV ဖိုင်သို့ ထုတ်ခိုင်းပြီး ဤအချိန်အတွင်း မစပါက ဖိုင်ထုတ်မှု မပံ့ပိုးဟု ယူဆသည် —
+  /// Android `synthesizeToFile` က ERROR ချက်ချင်းပြန်လျှင် flutter_tts သည် callback မပို့သဖြင့် ကိုယ်တိုင် ကန့်သတ်ရသည်။
+  static const Duration SYNTHESIS_START_TIMEOUT = Duration(seconds: 5);
+
+  /// Engine ထုတ်သော နောက်ဆုံးအသံ၏ ယာယီ WAV ဖိုင် — ထုတ်တိုင်း အစားထိုးသည် (app cache ထဲတွင်သာ)။
+  static const String SYNTHESIS_TEMPORARY_FILE = 'engine_synthesis.wav';
 }

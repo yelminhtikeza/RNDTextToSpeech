@@ -1,6 +1,6 @@
 # ADR 0001 — စက်ပေါ်ရှိ TTS engine ဖြင့် မြန်မာအသံ ထုတ်ခြင်း
 
-- **Status:** Accepted — ပုံသေ engine ကို ADR 0002 က ပြင်ဆင်ထားသည်
+- **Status:** Accepted — ပုံသေ engine ကို ADR 0002 က ပြင်ဆင်ထားသည်၊ Decision 2 (engine စစ်ထုတ်ခြင်း) ကို ADR 0004 က အစားထိုးထားသည်
 - **Date:** 2026-10-22
 
 ## Context

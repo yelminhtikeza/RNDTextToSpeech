@@ -12,11 +12,10 @@ class AppLocalizationsMy extends AppLocalizations {
   String get appTitle => 'မြန်မာ စာမှ အသံ';
 
   @override
-  String get inputLabel => 'မြန်မာစာ';
+  String get inputLabel => 'စာသား';
 
   @override
-  String get inputHint =>
-      'မြန်မာစာ (ယူနီကုဒ်) ကို ရိုက်ထည့်ပါ သို့မဟုတ် ကူးထည့်ပါ';
+  String get inputHint => 'ဖတ်စေလိုသော စာကို ရိုက်ထည့်ပါ သို့မဟုတ် ကူးထည့်ပါ';
 
   @override
   String get sampleText => 'မင်္ဂလာပါ။ မြန်မာစာကို အသံဖြင့် ဖတ်ပြနေပါသည်။';
@@ -34,20 +33,28 @@ class AppLocalizationsMy extends AppLocalizations {
   String get engineLabel => 'အသံ Engine';
 
   @override
+  String get languageLabel => 'ဘာသာစကား';
+
+  @override
+  String get errorNoLanguages =>
+      'ဤ Engine သည် ဘာသာစကား စာရင်း မပေးပါ။ အခြား Engine ကို ရွေးပါ သို့မဟုတ် ၎င်း၏ setting ကို စစ်ပြီး ပြန်ကြိုးစားပါ။';
+
+  @override
+  String errorLanguageUnavailable(String language) {
+    return 'ဤ Engine သည် $language ကို မဖတ်နိုင်ပါ။ အခြား ဘာသာ သို့မဟုတ် Engine ကို ရွေးပါ။';
+  }
+
+  @override
   String get speechRateLabel => 'အမြန်နှုန်း';
 
   @override
   String get pitchLabel => 'အသံအနိမ့်အမြင့်';
 
   @override
-  String get statusDetecting => 'မြန်မာစကား ပြောနိုင်သော Engine ကို ရှာနေသည်…';
+  String get statusDetecting => 'အသံ Engine များကို ရှာနေသည်…';
 
   @override
-  String get statusNoBurmeseEngine =>
-      'ဤ Engine သည် မြန်မာဘာသာ (my-MM) ကို မပံ့ပိုးပါ။ အခြား Engine ကို ရွေးပါ သို့မဟုတ် မြန်မာ TTS Engine ထည့်သွင်းပြီး ပြန်စစ်ပါ။';
-
-  @override
-  String get errorEmptyText => 'မြန်မာစာ အရင်ထည့်ပါ။';
+  String get errorEmptyText => 'စာ အရင်ထည့်ပါ။';
 
   @override
   String errorTextTooLong(int maxLength) {
@@ -89,6 +96,13 @@ class AppLocalizationsMy extends AppLocalizations {
   String get downloadHint => 'အသံကို ဒေါင်းလုဒ်လုပ်ရန် စာကို အရင်ဖတ်ပါ။';
 
   @override
+  String get statusPreparingAudio => 'အသံကို ပြင်ဆင်နေသည်…';
+
+  @override
+  String get errorAudioUnavailable =>
+      'ဤ Engine သည် ၎င်း၏ အသံကို မပေးနိုင်သဖြင့် ပြန်ဖွင့်ခြင်း/ဒေါင်းလုဒ် မရပါ။';
+
+  @override
   String get flowStepsLabel => 'Step';
 
   @override
@@ -103,12 +117,18 @@ class AppLocalizationsMy extends AppLocalizations {
       'အသံသည် စာကို မည်မျှ တင်းကျပ်စွာ လိုက်မည်နည်း။ 1 တွင် လွင့်/ဝါးနိုင်၊ ~3 မျှတ၊ 4–5 ပိုပြတ်သားသော်လည်း တင်းမာနိုင်။';
 
   @override
-  String generatedAudioDuration(String seconds) {
-    return 'ထုတ်ထားသော အသံ · $seconds စက္ကန့်';
+  String playbackTime(String position, String duration) {
+    return '$position / $duration';
   }
 
   @override
   String get playButton => 'ပြန်ဖွင့်ပါ';
+
+  @override
+  String get pauseButton => 'ခေတ္တရပ်';
+
+  @override
+  String get resumeButton => 'ဆက်ဖွင့်';
 
   @override
   String get voiceLabel => 'အသံ';

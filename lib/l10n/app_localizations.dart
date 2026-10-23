@@ -107,13 +107,13 @@ abstract class AppLocalizations {
   /// No description provided for @inputLabel.
   ///
   /// In en, this message translates to:
-  /// **'Burmese text'**
+  /// **'Text'**
   String get inputLabel;
 
   /// No description provided for @inputHint.
   ///
   /// In en, this message translates to:
-  /// **'Type or paste Burmese (Unicode) text'**
+  /// **'Type or paste the text to read aloud'**
   String get inputHint;
 
   /// No description provided for @sampleText.
@@ -146,6 +146,24 @@ abstract class AppLocalizations {
   /// **'Speech engine'**
   String get engineLabel;
 
+  /// No description provided for @languageLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get languageLabel;
+
+  /// No description provided for @errorNoLanguages.
+  ///
+  /// In en, this message translates to:
+  /// **'This speech engine did not report any languages. Choose another engine, or check its settings and try again.'**
+  String get errorNoLanguages;
+
+  /// No description provided for @errorLanguageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This speech engine cannot speak {language}. Choose another language or engine.'**
+  String errorLanguageUnavailable(String language);
+
   /// No description provided for @speechRateLabel.
   ///
   /// In en, this message translates to:
@@ -161,19 +179,13 @@ abstract class AppLocalizations {
   /// No description provided for @statusDetecting.
   ///
   /// In en, this message translates to:
-  /// **'Looking for an engine that speaks Burmese…'**
+  /// **'Looking for speech engines…'**
   String get statusDetecting;
-
-  /// No description provided for @statusNoBurmeseEngine.
-  ///
-  /// In en, this message translates to:
-  /// **'This speech engine does not support Burmese (my-MM). Choose another engine, or install a Burmese TTS engine and check again.'**
-  String get statusNoBurmeseEngine;
 
   /// No description provided for @errorEmptyText.
   ///
   /// In en, this message translates to:
-  /// **'Enter some Burmese text first.'**
+  /// **'Enter some text first.'**
   String get errorEmptyText;
 
   /// No description provided for @errorTextTooLong.
@@ -242,6 +254,18 @@ abstract class AppLocalizations {
   /// **'Speak the text first to download its audio.'**
   String get downloadHint;
 
+  /// No description provided for @statusPreparingAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing the audio…'**
+  String get statusPreparingAudio;
+
+  /// No description provided for @errorAudioUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This speech engine cannot provide its audio, so it cannot be replayed or downloaded.'**
+  String get errorAudioUnavailable;
+
   /// No description provided for @flowStepsLabel.
   ///
   /// In en, this message translates to:
@@ -266,17 +290,29 @@ abstract class AppLocalizations {
   /// **'How strictly the voice follows the text. 1 can drift or mumble, about 3 is balanced, and 4–5 is sharper but can sound strained.'**
   String get cfgHint;
 
-  /// No description provided for @generatedAudioDuration.
+  /// No description provided for @playbackTime.
   ///
   /// In en, this message translates to:
-  /// **'Generated audio · {seconds} s'**
-  String generatedAudioDuration(String seconds);
+  /// **'{position} / {duration}'**
+  String playbackTime(String position, String duration);
 
   /// No description provided for @playButton.
   ///
   /// In en, this message translates to:
   /// **'Play'**
   String get playButton;
+
+  /// No description provided for @pauseButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause'**
+  String get pauseButton;
+
+  /// No description provided for @resumeButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get resumeButton;
 
   /// No description provided for @voiceLabel.
   ///

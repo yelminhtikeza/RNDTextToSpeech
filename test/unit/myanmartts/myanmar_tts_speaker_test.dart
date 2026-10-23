@@ -82,14 +82,31 @@ class _FakeModels implements MyanmarTtsModels {
 
 class _FakeAudioOutput implements AudioOutput {
   final List<Uint8List> played = <Uint8List>[];
+  final List<Duration> startPositions = <Duration>[];
+  final List<String> controls = <String>[];
+  final List<Duration> seeks = <Duration>[];
+  final StreamController<Duration> positions = StreamController<Duration>.broadcast();
   Completer<void>? holdPlayback;
   int stopCallCount = 0;
 
   @override
-  Future<void> playWav({required Uint8List wav}) async {
+  Stream<Duration> get positionChanges => positions.stream;
+
+  @override
+  Future<void> playWav({required Uint8List wav, Duration startAt = Duration.zero}) async {
     played.add(wav);
+    startPositions.add(startAt);
     await holdPlayback?.future;
   }
+
+  @override
+  Future<void> pause() async => controls.add('pause');
+
+  @override
+  Future<void> resume() async => controls.add('resume');
+
+  @override
+  Future<void> seek({required Duration position}) async => seeks.add(position);
 
   @override
   Future<void> stop() async {
@@ -115,15 +132,17 @@ void main() {
   late _FakeModels models;
   late _FakeAudioOutput audio;
   late MyanmarTtsSpeaker speaker;
+  late List<WaveformSummary> waveforms;
 
   setUp(() {
+    waveforms = <WaveformSummary>[];
     models = _FakeModels();
     audio = _FakeAudioOutput();
     speaker = MyanmarTtsSpeaker(models: models, audioOutput: audio, random: math.Random(1));
   });
 
   test('synthesizes one chunk into a playable 44.1 kHz WAV', () async {
-    final SpokenAudio? spoken = await speaker.speak(text: 'ကခ', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
+    final SpokenAudio? spoken = await speaker.speak(onWaveformChanged: waveforms.add, text: 'ကခ', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
 
     // "ကခ" -> blank,က,blank,ခ,blank = 5 tokens × 2 frames
     expect(models.encodedTokenCounts, <int>[5]);
@@ -137,11 +156,80 @@ void main() {
     expect(spoken!.wav, audio.played.single);
     // 10 frames × 512 hop = 5120 samples
     expect(spoken.waveform.duration, Duration(microseconds: 5120 * 1000000 ~/ MyanmarTtsConfig.SAMPLE_RATE));
-    expect(spoken.waveform.peaks, hasLength(MyanmarTtsConfig.WAVEFORM_BAR_COUNT));
+    // 0.116 s × 20 bar/s ≈ 2 bar
+    expect(spoken.waveform.peaks, hasLength(2));
+    expect(waveforms, <WaveformSummary>[spoken.waveform], reason: 'shown as soon as the chunk starts playing');
+  });
+
+  test('grows the waveform chunk by chunk and reports positions across the whole audio', () async {
+    audio.holdPlayback = Completer<void>();
+    final List<Duration> positions = <Duration>[];
+    final StreamSubscription<Duration> subscription = speaker.positionChanges.listen(positions.add);
+    addTearDown(subscription.cancel);
+    final Future<SpokenAudio?> speaking = speaker.speak(
+      onWaveformChanged: waveforms.add,
+      text: 'က။ ခ။',
+      settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0),
+    );
+    await _waitUntil(() => audio.played.isNotEmpty);
+    final Duration firstChunk = waveforms.single.duration;
+
+    audio.holdPlayback!.complete();
+    audio.holdPlayback = Completer<void>();
+    await _waitUntil(() => audio.played.length == 2);
+    audio.positions.add(const Duration(milliseconds: 10));
+    await pumpEventQueue();
+    audio.holdPlayback!.complete();
+    audio.holdPlayback = null;
+    final SpokenAudio? spoken = await speaking;
+
+    expect(waveforms, hasLength(2));
+    expect(waveforms.last.duration, greaterThan(firstChunk));
+    expect(spoken!.waveform.peaks, waveforms.last.peaks);
+    expect(positions, <Duration>[firstChunk + const Duration(milliseconds: 10)]);
+  });
+
+  test('pause holds the next chunk until resume', () async {
+    audio.holdPlayback = Completer<void>();
+    final Future<SpokenAudio?> speaking = speaker.speak(
+      onWaveformChanged: waveforms.add,
+      text: 'က။ ခ။',
+      settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0),
+    );
+    await _waitUntil(() => audio.played.isNotEmpty && models.spectrumFrames.length == 2);
+
+    await speaker.pause();
+    audio.holdPlayback!.complete();
+    audio.holdPlayback = null;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(audio.played, hasLength(1), reason: 'the next chunk waits while paused');
+    expect(audio.controls, <String>['pause']);
+
+    await speaker.resume();
+    expect(await speaking, isNotNull);
+    expect(audio.played, hasLength(2));
+    expect(audio.controls, <String>['pause'], reason: 'nothing was playing to resume between chunks');
+  });
+
+  test('stop while paused ends speaking', () async {
+    audio.holdPlayback = Completer<void>();
+    final Future<SpokenAudio?> speaking = speaker.speak(
+      onWaveformChanged: waveforms.add,
+      text: 'က။ ခ။',
+      settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0),
+    );
+    await _waitUntil(() => audio.played.isNotEmpty);
+
+    await speaker.pause();
+    await speaker.stop();
+
+    expect(await speaking, isNull);
+    expect(audio.played, hasLength(1));
   });
 
   test('forwards steps and CFG to the model for every chunk', () async {
     await speaker.speak(
+      onWaveformChanged: waveforms.add,
       text: 'က။ ခ။',
       settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0, flowSteps: 8, cfgStrength: 4.5),
     );
@@ -149,17 +237,17 @@ void main() {
   });
 
   test('uses the chosen defaults when steps and CFG are not given', () async {
-    await speaker.speak(text: 'က', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
+    await speaker.speak(onWaveformChanged: waveforms.add, text: 'က', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
     expect(models.stepsAndCfg.single, (MyanmarTtsConfig.FLOW_STEPS_DEFAULT, MyanmarTtsConfig.CFG_STRENGTH_DEFAULT));
   });
 
   test('length scale changes the number of frames', () async {
-    await speaker.speak(text: 'ကခ', settings: SynthesisSettings(speaker: _speaker, lengthScale: 0.5));
+    await speaker.speak(onWaveformChanged: waveforms.add, text: 'ကခ', settings: SynthesisSettings(speaker: _speaker, lengthScale: 0.5));
     expect(models.spectrumFrames, <int>[5]);
   });
 
   test('plays each sentence in order and skips chunks with nothing to say', () async {
-    final SpokenAudio? spoken = await speaker.speak(text: 'က။ hello။ ခဂ။', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
+    final SpokenAudio? spoken = await speaker.speak(onWaveformChanged: waveforms.add, text: 'က။ hello။ ခဂ။', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
 
     expect(models.encodedTokenCounts, <int>[5, 7]);
     expect(audio.played, hasLength(2));
@@ -170,7 +258,7 @@ void main() {
 
   test('synthesizes the next sentence while the current one plays', () async {
     audio.holdPlayback = Completer<void>();
-    final Future<void> speaking = speaker.speak(text: 'က။ ခ။', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
+    final Future<void> speaking = speaker.speak(onWaveformChanged: waveforms.add, text: 'က။ ခ။', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
     await _waitUntil(() => audio.played.isNotEmpty && models.spectrumFrames.length == 2);
 
     expect(audio.played, hasLength(1));
@@ -184,7 +272,7 @@ void main() {
 
   test('stop during synthesis cancels without playing or throwing', () async {
     models.holdSpectrum = Completer<void>();
-    final Future<void> speaking = speaker.speak(text: 'က', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
+    final Future<void> speaking = speaker.speak(onWaveformChanged: waveforms.add, text: 'က', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
     await _waitUntil(() => models.spectrumFrames.isNotEmpty);
 
     await speaker.stop();
@@ -196,7 +284,7 @@ void main() {
 
   test('stop during playback does not start the next sentence', () async {
     audio.holdPlayback = Completer<void>();
-    final Future<SpokenAudio?> speaking = speaker.speak(text: 'က။ ခ။ ဂ။', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
+    final Future<SpokenAudio?> speaking = speaker.speak(onWaveformChanged: waveforms.add, text: 'က။ ခ။ ဂ။', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
     await _waitUntil(() => audio.played.isNotEmpty);
 
     await speaker.stop();
@@ -223,8 +311,25 @@ void main() {
     expect(models.encodedTokenCounts, isEmpty);
   });
 
+  test('replay can start part-way and seek, pause and resume the player', () async {
+    final Uint8List wav = Uint8List.fromList(<int>[1, 2, 3]);
+    audio.holdPlayback = Completer<void>();
+    final Future<void> replaying = speaker.replay(wav: wav, startAt: const Duration(seconds: 2));
+    await pumpEventQueue();
+
+    await speaker.pause();
+    await speaker.seek(position: const Duration(seconds: 1));
+    await speaker.resume();
+    await speaker.stop();
+    await replaying;
+
+    expect(audio.startPositions, <Duration>[const Duration(seconds: 2)]);
+    expect(audio.controls, <String>['pause', 'resume']);
+    expect(audio.seeks, <Duration>[const Duration(seconds: 1)]);
+  });
+
   test('passes the selected voice to the encoder and every estimator run', () async {
-    await speaker.speak(text: 'က', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
+    await speaker.speak(onWaveformChanged: waveforms.add, text: 'က', settings: SynthesisSettings(speaker: _speaker, lengthScale: 1.0));
     expect(models.speakers, hasLength(2));
     expect(models.speakers.every((Float32List s) => identical(s, _speaker)), isTrue);
   });

@@ -50,28 +50,31 @@ BurmeseSpeechController _controllerOf(ProviderContainer container) =>
 
 FakeTtsService _systemWithBurmese() => FakeTtsService(
       engines: <String>[_GOOGLE, _BURMESE_ENGINE],
-      burmeseEngines: <String>{_BURMESE_ENGINE},
+      languagesByEngine: <String, List<String>>{
+        _GOOGLE: <String>['fr-FR', 'en-US'],
+        _BURMESE_ENGINE: <String>['en-US', 'my'],
+      },
     );
 
 void main() {
-  group('detectBurmeseEngines', () {
-    test('lists the on-device engine first, then Burmese-capable Android engines', () async {
+  group('detectEngines', () {
+    test('lists the on-device engine first, then every Android engine unfiltered', () async {
       final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
       final ProviderContainer container =
           await _createDetectedContainer(system: _systemWithBurmese(), onDevice: onDevice);
 
-      expect(_stateOf(container).engines, <String>[_ON_DEVICE, _BURMESE_ENGINE]);
+      expect(_stateOf(container).engines, <String>[_ON_DEVICE, _GOOGLE, _BURMESE_ENGINE]);
       expect(_stateOf(container).selectedEngine, _ON_DEVICE);
       expect(_stateOf(container).status, SpeechStatus.ready);
       expect(onDevice.loadCallCount, 1);
     });
 
-    test('the on-device engine works when no Android engine supports Burmese', () async {
-      final ProviderContainer container =
-          await _createDetectedContainer(system: FakeTtsService(engines: <String>[_GOOGLE]));
+    test('the on-device engine offers Burmese only', () async {
+      final ProviderContainer container = await _createDetectedContainer(system: _systemWithBurmese());
 
-      expect(_stateOf(container).engines, <String>[_ON_DEVICE]);
-      expect(_stateOf(container).canSpeak, isTrue);
+      expect(_stateOf(container).languages, <String>[TtsConfig.BURMESE_LANGUAGE_TAG]);
+      expect(_stateOf(container).selectedLanguage, TtsConfig.BURMESE_LANGUAGE_TAG);
+      expect(_stateOf(container).canChooseLanguage, isFalse);
     });
 
     test('a failing Android engine scan is not fatal', () async {
@@ -102,14 +105,103 @@ void main() {
   });
 
   group('selectEngine (Android)', () {
-    test('an engine that rejects my-MM is reported as unavailable', () async {
+    test('lists the engine languages sorted and prefers Burmese', () async {
+      final FakeTtsService system = _systemWithBurmese();
+      final ProviderContainer container = await _createDetectedContainer(system: system);
+
+      await _controllerOf(container).selectEngine(engineName: _BURMESE_ENGINE);
+
+      expect(_stateOf(container).languages, <String>['en-US', 'my']);
+      expect(_stateOf(container).selectedLanguage, 'my');
+      expect(system.activeLanguage, 'my');
+      expect(_stateOf(container).canChooseLanguage, isTrue);
+      expect(_stateOf(container).status, SpeechStatus.ready);
+    });
+
+    test('an engine without Burmese defaults to its first language', () async {
+      final FakeTtsService system = _systemWithBurmese();
+      final ProviderContainer container = await _createDetectedContainer(system: system);
+
+      await _controllerOf(container).selectEngine(engineName: _GOOGLE);
+
+      expect(_stateOf(container).languages, <String>['en-US', 'fr-FR']);
+      expect(_stateOf(container).selectedLanguage, 'en-US');
+      expect(system.activeLanguage, 'en-US');
+      expect(_stateOf(container).canSpeak, isTrue);
+    });
+
+    test('the user can choose any language the engine supports', () async {
+      final FakeTtsService system = _systemWithBurmese();
+      final ProviderContainer container = await _createDetectedContainer(system: system);
+      await _controllerOf(container).selectEngine(engineName: _GOOGLE);
+
+      await _controllerOf(container).selectLanguage(languageTag: 'fr-FR');
+
+      expect(_stateOf(container).selectedLanguage, 'fr-FR');
+      expect(system.activeLanguage, 'fr-FR');
+      expect(_stateOf(container).status, SpeechStatus.ready);
+    });
+
+    test('a language the engine cannot load is reported and another can be chosen', () async {
+      final FakeTtsService system = FakeTtsService(
+        engines: <String>[_GOOGLE],
+        languagesByEngine: <String, List<String>>{_GOOGLE: <String>['en-US', 'fr-FR']},
+        rejectedLanguages: <String>{'fr-FR'},
+      );
+      final ProviderContainer container = await _createDetectedContainer(system: system);
+      await _controllerOf(container).selectEngine(engineName: _GOOGLE);
+
+      await _controllerOf(container).selectLanguage(languageTag: 'fr-FR');
+      expect(_stateOf(container).status, SpeechStatus.engineUnavailable);
+      expect(_stateOf(container).error, SpeechError.languageUnavailable);
+      expect(_stateOf(container).canChooseLanguage, isTrue);
+
+      await _controllerOf(container).selectLanguage(languageTag: 'en-US');
+      expect(_stateOf(container).status, SpeechStatus.ready);
+      expect(_stateOf(container).error, isNull);
+    });
+
+    test('an engine that reports no languages is unavailable and keeps no stale language', () async {
       final ProviderContainer container =
           await _createDetectedContainer(system: FakeTtsService(engines: <String>[_GOOGLE]));
 
       await _controllerOf(container).selectEngine(engineName: _GOOGLE);
 
       expect(_stateOf(container).status, SpeechStatus.engineUnavailable);
-      expect(_stateOf(container).error, SpeechError.languageUnavailable);
+      expect(_stateOf(container).error, SpeechError.noLanguages);
+      expect(_stateOf(container).languages, isEmpty);
+      expect(_stateOf(container).selectedLanguage, isNull);
+    });
+
+    test('a failing language query keeps the platform message', () async {
+      final ProviderContainer container = await _createDetectedContainer(
+        system: FakeTtsService(engines: <String>[_GOOGLE], failingOperation: 'getLanguages'),
+      );
+
+      await _controllerOf(container).selectEngine(engineName: _GOOGLE);
+
+      expect(_stateOf(container).error, SpeechError.noLanguages);
+      expect(_stateOf(container).platformMessage, 'getLanguages failed');
+    });
+
+    test('switching back to the on-device engine restores Burmese', () async {
+      final ProviderContainer container = await _createDetectedContainer(system: _systemWithBurmese());
+      await _controllerOf(container).selectEngine(engineName: _GOOGLE);
+
+      await _controllerOf(container).selectEngine(engineName: _ON_DEVICE);
+
+      expect(_stateOf(container).languages, <String>[TtsConfig.BURMESE_LANGUAGE_TAG]);
+      expect(_stateOf(container).selectedLanguage, TtsConfig.BURMESE_LANGUAGE_TAG);
+    });
+
+    test('selectLanguage is ignored for the on-device engine', () async {
+      final FakeTtsService system = _systemWithBurmese();
+      final ProviderContainer container = await _createDetectedContainer(system: system);
+
+      await _controllerOf(container).selectLanguage(languageTag: 'en-US');
+
+      expect(_stateOf(container).selectedLanguage, TtsConfig.BURMESE_LANGUAGE_TAG);
+      expect(system.activeLanguage, isNull);
     });
 
     test('pitch is only supported by Android engines', () async {
@@ -221,7 +313,7 @@ void main() {
     setUp(() async {
       system = FakeTtsService(
         engines: <String>[_BURMESE_ENGINE],
-        burmeseEngines: <String>{_BURMESE_ENGINE},
+        languagesByEngine: <String, List<String>>{_BURMESE_ENGINE: <String>['my-MM']},
         maxInputLength: 20,
       );
       container = await _createDetectedContainer(system: system);
@@ -263,7 +355,7 @@ void main() {
     test('engine failure reports speakFailed with the platform message', () async {
       final FakeTtsService failingSystem = FakeTtsService(
         engines: <String>[_BURMESE_ENGINE],
-        burmeseEngines: <String>{_BURMESE_ENGINE},
+        languagesByEngine: <String, List<String>>{_BURMESE_ENGINE: <String>['my-MM']},
         failingOperation: 'speak',
       );
       final ProviderContainer failing = await _createDetectedContainer(system: failingSystem);
@@ -276,6 +368,145 @@ void main() {
     });
   });
 
+  group('audio export from Android engines (rendered on demand)', () {
+    late FakeTtsService system;
+    late FakeOnDeviceSpeaker onDevice;
+    late ProviderContainer container;
+
+    Future<void> useEngine({required Set<String> exporting, String? failingOperation}) async {
+      system = FakeTtsService(
+        engines: <String>[_GOOGLE],
+        languagesByEngine: <String, List<String>>{_GOOGLE: <String>['en-US']},
+        exportingEngines: exporting,
+        failingOperation: failingOperation,
+      );
+      onDevice = FakeOnDeviceSpeaker();
+      container = await _createDetectedContainer(system: system, onDevice: onDevice);
+      await _controllerOf(container).selectEngine(engineName: _GOOGLE);
+    }
+
+    test('speaks aloud immediately and renders nothing until Play or Download is used', () async {
+      await useEngine(exporting: <String>{_GOOGLE});
+
+      await _controllerOf(container).speak(text: 'hello');
+
+      expect(system.speakCallCount, 1);
+      expect(system.synthesizeCallCount, 0, reason: 'no double work unless the user asks');
+      expect(_stateOf(container).hasRenderableSpeech, isTrue);
+      expect(_stateOf(container).canReplay, isTrue);
+      expect(_stateOf(container).canDownload, isTrue);
+      expect(_stateOf(container).waveform.isEmpty, isTrue);
+    });
+
+    test('Play renders the file once with the settings that were heard, then plays it', () async {
+      await useEngine(exporting: <String>{_GOOGLE});
+      _controllerOf(container).updatePitch(pitch: 1.5);
+      await _controllerOf(container).speak(text: 'hello');
+      _controllerOf(container).updatePitch(pitch: 0.7);
+
+      await _controllerOf(container).replayGeneratedAudio();
+      await _controllerOf(container).replayGeneratedAudio();
+
+      expect(system.synthesizeCallCount, 1, reason: 'the rendered file is reused');
+      expect(system.appliedPitch, 1.5, reason: 'renders what was heard, not the moved slider');
+      expect(onDevice.replayed, hasLength(2));
+      expect(_stateOf(container).waveform.duration, const Duration(seconds: 1));
+      expect(_stateOf(container).isPreparingAudio, isFalse);
+    });
+
+    test('Download renders the file and saves it', () async {
+      final FakeAudioFileSaver saver = FakeAudioFileSaver();
+      system = FakeTtsService(
+        engines: <String>[_GOOGLE],
+        languagesByEngine: <String, List<String>>{_GOOGLE: <String>['en-US']},
+        exportingEngines: <String>{_GOOGLE},
+      );
+      container = await _createDetectedContainer(system: system, saver: saver);
+      await _controllerOf(container).selectEngine(engineName: _GOOGLE);
+      await _controllerOf(container).speak(text: 'hello');
+
+      final AudioSaveResult result = await _controllerOf(container).downloadAudio();
+
+      expect(result.status, AudioSaveStatus.saved);
+      expect(saver.savedWav, FakeTtsService.exportedAudio.wav);
+      expect(_stateOf(container).isSavingAudio, isFalse);
+    });
+
+    test('an engine that cannot write files explains why and is remembered', () async {
+      await useEngine(exporting: const <String>{});
+      await _controllerOf(container).speak(text: 'hello');
+
+      await _controllerOf(container).replayGeneratedAudio();
+
+      expect(_stateOf(container).error, SpeechError.audioUnavailable);
+      expect(_stateOf(container).supportsDownload, isFalse);
+      expect(_stateOf(container).canReplay, isFalse);
+      expect(onDevice.replayed, isEmpty);
+
+      await _controllerOf(container).speak(text: 'hello');
+      expect(_stateOf(container).hasRenderableSpeech, isFalse, reason: 'no Play offered again for this engine');
+    });
+
+    test('Download on an engine that cannot write files reports unavailable', () async {
+      await useEngine(exporting: const <String>{}, failingOperation: 'synthesizeToFile');
+      await _controllerOf(container).speak(text: 'hello');
+
+      final AudioSaveResult result = await _controllerOf(container).downloadAudio();
+
+      expect(result.status, AudioSaveStatus.unavailable);
+      expect(_stateOf(container).error, SpeechError.audioUnavailable);
+    });
+
+    test('a stopped reading offers nothing to replay or render', () async {
+      await useEngine(exporting: <String>{_GOOGLE});
+      system.pendingSpeak = Completer<bool>();
+      final Future<void> speaking = _controllerOf(container).speak(text: 'hello');
+      await pumpEventQueue();
+
+      await _controllerOf(container).stop();
+      await speaking;
+
+      expect(_stateOf(container).hasPlayableAudio, isFalse);
+      expect(system.synthesizeCallCount, 0);
+    });
+
+    test('editing the text while rendering cancels it without marking the engine unsupported', () async {
+      await useEngine(exporting: <String>{_GOOGLE});
+      await _controllerOf(container).speak(text: 'hello');
+      system.pendingSynthesis = Completer<void>();
+      final Future<void> replaying = _controllerOf(container).replayGeneratedAudio();
+      await pumpEventQueue();
+      expect(_stateOf(container).isPreparingAudio, isTrue);
+
+      _controllerOf(container).discardGeneratedAudio();
+      await replaying;
+
+      expect(system.stopCallCount, 1, reason: 'the engine stops rendering');
+      expect(_stateOf(container).isPreparingAudio, isFalse);
+      expect(_stateOf(container).hasPlayableAudio, isFalse);
+      expect(_stateOf(container).supportsDownload, isTrue);
+      expect(_stateOf(container).error, isNull);
+      expect(onDevice.replayed, isEmpty);
+    });
+
+    test('rendered engine audio can be paused and stopped through the app player', () async {
+      await useEngine(exporting: <String>{_GOOGLE});
+      await _controllerOf(container).speak(text: 'hello');
+      onDevice.pendingReplay = Completer<void>();
+      final Future<void> replaying = _controllerOf(container).replayGeneratedAudio();
+      await pumpEventQueue();
+      expect(_stateOf(container).isReplaying, isTrue);
+
+      await _controllerOf(container).togglePause();
+      expect(onDevice.controls, <String>['pause']);
+
+      await _controllerOf(container).stop();
+      await replaying;
+      expect(onDevice.stopCallCount, 1);
+      expect(_stateOf(container).canDownload, isTrue, reason: 'stopping playback keeps the rendered audio');
+    });
+  });
+
   group('download', () {
     test('audio becomes downloadable after on-device speech finishes', () async {
       final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
@@ -285,13 +516,14 @@ void main() {
 
       await _controllerOf(container).speak(text: _BURMESE_TEXT);
       expect(_stateOf(container).canDownload, isTrue);
-      expect(_stateOf(container).waveform.peaks, hasLength(MyanmarTtsConfig.WAVEFORM_BAR_COUNT));
+      // 0.5 s × 20 bar/s
+      expect(_stateOf(container).waveform.peaks, hasLength(10));
       expect(_stateOf(container).waveform.duration, const Duration(milliseconds: 500));
 
       final AudioSaveResult result = await _controllerOf(container).downloadAudio();
       expect(result.status, AudioSaveStatus.saved);
       expect(saver.savedWav, onDevice.spokenAudio);
-      expect(saver.savedFileName, matches(RegExp(r'^myanmartts_\d{8}_\d{6}\.wav$')));
+      expect(saver.savedFileName, matches(RegExp(r'^speech_\d{8}_\d{6}\.wav$')));
       expect(_stateOf(container).isSavingAudio, isFalse);
     });
 
@@ -318,7 +550,6 @@ void main() {
       await _controllerOf(container).speak(text: _BURMESE_TEXT);
       await _controllerOf(container).selectEngine(engineName: _BURMESE_ENGINE);
       expect(_stateOf(container).hasDownloadableAudio, isFalse);
-      expect(_stateOf(container).supportsDownload, isFalse);
     });
 
     test('a cancelled save dialog is reported as cancelled', () async {
@@ -380,6 +611,114 @@ void main() {
       expect(_stateOf(container).status, SpeechStatus.ready);
       expect(_stateOf(container).error, isNull);
       expect(_stateOf(container).hasDownloadableAudio, isTrue, reason: 'stopping a replay keeps the audio');
+    });
+
+    test('the waveform appears while speaking, before the audio is complete', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker()..pendingSpeak = Completer<void>();
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+
+      final Future<void> speaking = _controllerOf(container).speak(text: _BURMESE_TEXT);
+      await pumpEventQueue();
+
+      expect(_stateOf(container).isSpeaking, isTrue);
+      expect(_stateOf(container).waveform.isEmpty, isFalse);
+      expect(_stateOf(container).canSeek, isFalse, reason: 'later chunks do not exist yet');
+      onDevice.pendingSpeak!.complete();
+      await speaking;
+    });
+
+    test('tracks the playback position in steps and resets it when playback ends', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+      onDevice.pendingReplay = Completer<void>();
+      final Future<void> replaying = _controllerOf(container).replayGeneratedAudio();
+      await pumpEventQueue();
+
+      onDevice.positions.add(const Duration(milliseconds: 200));
+      await pumpEventQueue();
+      expect(_stateOf(container).playbackPosition, const Duration(milliseconds: 200));
+
+      onDevice.positions.add(const Duration(milliseconds: 230));
+      await pumpEventQueue();
+      expect(_stateOf(container).playbackPosition, const Duration(milliseconds: 200),
+          reason: 'changes smaller than the step do not rebuild the screen');
+
+      onDevice.pendingReplay!.complete();
+      await replaying;
+      expect(_stateOf(container).playbackPosition, Duration.zero);
+    });
+
+    test('pause and resume toggle the player', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+      onDevice.pendingReplay = Completer<void>();
+      final Future<void> replaying = _controllerOf(container).replayGeneratedAudio();
+      await pumpEventQueue();
+
+      await _controllerOf(container).togglePause();
+      expect(_stateOf(container).isPaused, isTrue);
+      expect(_stateOf(container).isReplaying, isTrue, reason: 'Stop stays available while paused');
+      await _controllerOf(container).togglePause();
+      expect(_stateOf(container).isPaused, isFalse);
+      expect(onDevice.controls, <String>['pause', 'resume']);
+
+      await _controllerOf(container).togglePause();
+      await _controllerOf(container).stop();
+      await replaying;
+      expect(_stateOf(container).isPaused, isFalse);
+    });
+
+    test('seeking while replaying moves the player; seeking while idle starts from there', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+
+      onDevice.pendingReplay = Completer<void>();
+      final Future<void> replaying = _controllerOf(container).seekGeneratedAudio(fraction: 0.5);
+      await pumpEventQueue();
+      expect(onDevice.replayStarts, <Duration>[const Duration(milliseconds: 250)]);
+
+      await _controllerOf(container).seekGeneratedAudio(fraction: 0.2);
+      expect(onDevice.seeks, <Duration>[const Duration(milliseconds: 100)]);
+      expect(_stateOf(container).playbackPosition, const Duration(milliseconds: 100));
+
+      await _controllerOf(container).stop();
+      await replaying;
+    });
+
+    test('a failing pause shows the platform message without stopping playback', () async {
+      final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker()
+        ..controlError = const AudioOutputException(operation: 'pause', platformMessage: 'player released');
+      final ProviderContainer container = await _createDetectedContainer(onDevice: onDevice);
+      await _controllerOf(container).speak(text: _BURMESE_TEXT);
+      onDevice.pendingReplay = Completer<void>();
+      final Future<void> replaying = _controllerOf(container).replayGeneratedAudio();
+      await pumpEventQueue();
+
+      await _controllerOf(container).togglePause();
+
+      expect(_stateOf(container).platformMessage, 'player released');
+      expect(_stateOf(container).isReplaying, isTrue);
+      expect(_stateOf(container).isPaused, isFalse);
+      await _controllerOf(container).stop();
+      await replaying;
+    });
+
+    test('Android engines cannot be paused', () async {
+      final FakeTtsService system = FakeTtsService(
+        engines: <String>[_BURMESE_ENGINE],
+        languagesByEngine: <String, List<String>>{_BURMESE_ENGINE: <String>['my-MM']},
+      )..pendingSpeak = Completer<bool>();
+      final ProviderContainer container = await _createDetectedContainer(system: system);
+      await _controllerOf(container).selectEngine(engineName: _BURMESE_ENGINE);
+      final Future<void> speaking = _controllerOf(container).speak(text: _BURMESE_TEXT);
+      await pumpEventQueue();
+
+      expect(_stateOf(container).canPause, isFalse);
+      await _controllerOf(container).stop();
+      await speaking;
     });
 
     test('does nothing when there is no generated audio', () async {

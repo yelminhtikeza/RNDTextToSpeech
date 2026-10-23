@@ -25,15 +25,31 @@ abstract interface class OnDeviceSpeaker {
   bool hasSpeakableText({required String text});
 
   /// ဖတ်ပြီးဆုံးသည် သို့မဟုတ် [stop] ခေါ်သည်အထိ စောင့်သည်။
+  /// အပိုင်းတစ်ခု စဖွင့်တိုင်း ယခုထိ ဖွင့်ခဲ့/ဖွင့်နေသော အသံ၏ waveform ကို [onWaveformChanged] ဖြင့် ပေးသည် (ဖတ်နေစဉ် ပြရန်)။
   /// အဆုံးထိ ဖတ်ပြီးပါက ကြားခဲ့သော အသံအားလုံးကို WAV တစ်ဖိုင်နှင့် waveform အဖြစ် ပြန်ပေးသည် (download/ပြသရန်)၊
   /// ရပ်လိုက်ပါက အပိုင်းလိုက်သာ ရှိ၍ null ပြန်ပေးသည်။
-  Future<SpokenAudio?> speak({required String text, required SynthesisSettings settings});
+  Future<SpokenAudio?> speak({
+    required String text,
+    required SynthesisSettings settings,
+    required void Function(WaveformSummary waveform) onWaveformChanged,
+  });
 
   /// အသံသွင်းထားသော [waveform] (မည်သည့် sample rate မဆို) မှ အသံ လက်ဗွေ ကို တွက်သည် — အသံအသစ် ဖန်တီးရန်။
   Future<Float32List> createVoiceEmbedding({required Float32List waveform, required int sampleRate});
 
-  /// ထုတ်ပြီးသား [wav] ကို model မ run ဘဲ ပြန်ဖွင့်သည်။ ဖွင့်ပြီးဆုံးသည် သို့မဟုတ် [stop] ခေါ်သည်အထိ စောင့်သည်။
-  Future<void> replay({required Uint8List wav});
+  /// ထုတ်ပြီးသား [wav] ကို model မ run ဘဲ [startAt] မှ ပြန်ဖွင့်သည်။ ဖွင့်ပြီးဆုံးသည် သို့မဟုတ် [stop] ခေါ်သည်အထိ စောင့်သည်။
+  Future<void> replay({required Uint8List wav, Duration startAt = Duration.zero});
+
+  /// [speak]/[replay] ၏ အသံတစ်ခုလုံးအတွင်း လက်ရှိ နေရာ — အပိုင်းလိုက် ဖတ်နေစဉ်လည်း ယခင်အပိုင်းများ၏ ကြာချိန်ကို ပေါင်းထားသည်။
+  Stream<Duration> get positionChanges;
+
+  /// ဖတ်နေစဉ် ခေတ္တရပ်လျှင် နောက်အပိုင်းကို ဆက်ထုတ်ထားသော်လည်း [resume] မခေါ်မချင်း မဖွင့်ပါ။
+  Future<void> pause();
+
+  Future<void> resume();
+
+  /// [replay] ဖွင့်နေစဉ်/ခေတ္တရပ်ထားစဉ်သာ — အပိုင်းလိုက် ဖတ်နေစဉ် နောက်အပိုင်း မထုတ်ရသေး၍ မရ။
+  Future<void> seek({required Duration position});
 
   Future<void> stop();
 
@@ -61,6 +77,19 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
   Future<void>? _loading;
   bool _isStopRequested = false;
 
+  /// ဖွင့်နေသော အပိုင်း မတိုင်မီ အပိုင်းများ၏ ကြာချိန် — player ၏ အပိုင်းအတွင်း position ကို အသံတစ်ခုလုံး၏ position သို့ ပြောင်းရန်။
+  Duration _playbackOffset = Duration.zero;
+
+  /// ခေတ္တရပ်ထားစဉ် နောက်အပိုင်း မဖွင့်စေရန် တံခါး — null ဆိုလျှင် ဖွင့်ခွင့်ရှိသည်။
+  Completer<void>? _resumeGate;
+
+  /// Player ပေါ်တွင် WAV ဖွင့်နေဆဲ ဟုတ်/မဟုတ် — အပိုင်းကြား (ဖွင့်ပြီး၍ release ဖြစ်နေသော player) ကို pause/resume မခေါ်မိစေရန်။
+  bool _isOutputPlaying = false;
+
+  @override
+  Stream<Duration> get positionChanges =>
+      _audioOutput.positionChanges.map((Duration position) => _playbackOffset + position);
+
   @override
   Future<void> load() {
     // မအောင်မြင်ပါက နောက်တစ်ကြိမ် ပြန်ကြိုးစားနိုင်ရန် cache ကို ရှင်းသည်။
@@ -74,31 +103,40 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
   bool hasSpeakableText({required String text}) => _TOKENIZER.hasSpeakableText(text: text);
 
   @override
-  Future<SpokenAudio?> speak({required String text, required SynthesisSettings settings}) async {
+  Future<SpokenAudio?> speak({
+    required String text,
+    required SynthesisSettings settings,
+    required void Function(WaveformSummary waveform) onWaveformChanged,
+  }) async {
     await load();
     _isStopRequested = false;
+    _resumeGate = null;
     final List<String> chunks =
         _CHUNKER.split(text: text).where((String chunk) => hasSpeakableText(text: chunk)).toList();
     if (chunks.isEmpty) return null;
     final List<Uint8List> played = <Uint8List>[];
+    WaveformSummary waveform = WaveformSummary.empty;
 
     // အပိုင်း i ဖွင့်နေစဉ် အပိုင်း i+1 ကို ကြိုထုတ်ထားသဖြင့် ဝါကျကြား တိတ်ဆိတ်ချိန် မရှိသလောက် ဖြစ်သည်။
-    Future<Uint8List>? pending = _synthesize(text: chunks.first, settings: settings);
+    Future<SpokenAudio>? pending = _synthesizeChunk(text: chunks.first, settings: settings);
     try {
       for (int index = 0; index < chunks.length; index++) {
-        final Uint8List wav = await pending!;
+        final SpokenAudio chunk = await pending!;
         pending = index + 1 < chunks.length
-            ? _synthesize(text: chunks[index + 1], settings: settings)
+            ? _synthesizeChunk(text: chunks[index + 1], settings: settings)
             : null;
+        await _resumeGate?.future;
         if (_isStopRequested) return null;
-        await _audioOutput.playWav(wav: wav);
+        _playbackOffset = waveform.duration;
+        waveform = waveform.followedBy(chunk.waveform);
+        onWaveformChanged(waveform);
+        await _playOutput(wav: chunk.wav, startAt: Duration.zero);
         if (_isStopRequested) return null;
-        played.add(wav);
+        played.add(chunk.wav);
       }
-      final Uint8List wav = _WAV_ENCODER.concatenatePcm16(wavs: played, sampleRate: MyanmarTtsConfig.SAMPLE_RATE);
       return SpokenAudio(
-        wav: wav,
-        waveform: await summarizeWaveformInIsolate(wav: wav, barCount: MyanmarTtsConfig.WAVEFORM_BAR_COUNT),
+        wav: _WAV_ENCODER.concatenatePcm16(wavs: played, sampleRate: MyanmarTtsConfig.SAMPLE_RATE),
+        waveform: waveform,
       );
     } on SynthesisCancelledException {
       return null;
@@ -121,15 +159,58 @@ class MyanmarTtsSpeaker implements OnDeviceSpeaker {
   }
 
   @override
-  Future<void> replay({required Uint8List wav}) async {
+  Future<void> replay({required Uint8List wav, Duration startAt = Duration.zero}) async {
     _isStopRequested = false;
-    await _audioOutput.playWav(wav: wav);
+    _resumeGate = null;
+    _playbackOffset = Duration.zero;
+    await _playOutput(wav: wav, startAt: startAt);
   }
+
+  @override
+  Future<void> pause() async {
+    _resumeGate ??= Completer<void>();
+    if (_isOutputPlaying) await _audioOutput.pause();
+  }
+
+  @override
+  Future<void> resume() async {
+    _openResumeGate();
+    if (_isOutputPlaying) await _audioOutput.resume();
+  }
+
+  @override
+  Future<void> seek({required Duration position}) => _audioOutput.seek(position: position - _playbackOffset);
 
   @override
   Future<void> stop() async {
     _isStopRequested = true;
+    // ခေတ္တရပ်ထားစဉ် ရပ်လျှင် တံခါးတွင် စောင့်နေသော speak ကို လွှတ်ရန်။
+    _openResumeGate();
     await _audioOutput.stop();
+  }
+
+  void _openResumeGate() {
+    final Completer<void>? gate = _resumeGate;
+    _resumeGate = null;
+    if (gate != null && !gate.isCompleted) gate.complete();
+  }
+
+  Future<void> _playOutput({required Uint8List wav, required Duration startAt}) async {
+    _isOutputPlaying = true;
+    try {
+      await _audioOutput.playWav(wav: wav, startAt: startAt);
+    } finally {
+      _isOutputPlaying = false;
+    }
+  }
+
+  /// အပိုင်းတစ်ခု ထုတ်ပြီး ၎င်း၏ waveform ကိုပါ တွက်သည် (ဖွင့်ချိန်တွင် ချက်ချင်း ပြနိုင်ရန်)။
+  Future<SpokenAudio> _synthesizeChunk({required String text, required SynthesisSettings settings}) async {
+    final Uint8List wav = await _synthesize(text: text, settings: settings);
+    return SpokenAudio(
+      wav: wav,
+      waveform: await summarizeWaveformInIsolate(wav: wav, barsPerSecond: MyanmarTtsConfig.WAVEFORM_BARS_PER_SECOND),
+    );
   }
 
   @override

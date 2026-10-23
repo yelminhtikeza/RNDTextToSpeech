@@ -32,7 +32,7 @@ product owner က ဆုံးဖြတ်ခဲ့သည်။ ထို model 
    dialog (Storage Access Framework, `flutter_file_dialog`) ဖြင့် သိမ်းနိုင်သည်။ ကြားခဲ့သည့် အသံကိုသာ သိမ်းသဖြင့်
    ထပ်မထုတ်ရ။ ရပ်ထားသော/စာပြင်ပြီးသော/engine ပြောင်းပြီးသော အသံကို မပေးပါ — စာနှင့် မကိုက်သော ဖိုင်မထွက်စေရန်။
    - ပယ်ခဲ့သော ရွေးချယ်မှု: MediaStore ဖြင့် Downloads သို့ တိုက်ရိုက်ရေးခြင်း (Android version အလိုက် permission ကွဲ)၊
-     Android engine များအတွက် `synthesizeToFile` (third-party engine အများစု ယုံကြည်စိတ်ချ မရ)၊
+     Android engine များအတွက် `synthesizeToFile` (third-party engine အများစု ယုံကြည်စိတ်ချ မရ — ADR 0005 က fallback ဖြင့် ပြန်ထည့်သည်)၊
      `flutter_file_dialog` ≥ 3.1 (Dart 3.12 လို၍ project SDK constraint `^3.11.5` နှင့် မကိုက်)။
 
 ## Rejected alternatives

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,6 +52,12 @@ OutlinedButton _downloadButton(WidgetTester tester) =>
 FilledButton _speakButton(WidgetTester tester) =>
     tester.widget<FilledButton>(find.ancestor(of: find.text('Speak'), matching: find.byType(FilledButton)));
 
+/// Waveform အကျယ်ကို pixel ဖြင့် ပိုင်းရ၍ ms အနည်းငယ် ကွာနိုင်သည်။
+Matcher closeToDuration(Duration expected) => predicate<Duration>(
+      (Duration actual) => (actual - expected).abs() <= const Duration(milliseconds: 5),
+      'within 5 ms of $expected',
+    );
+
 void main() {
   testWidgets('speaks the sample text with the on-device engine by default', (WidgetTester tester) async {
     final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
@@ -66,7 +74,7 @@ void main() {
   testWidgets('can switch to an installed Android engine', (WidgetTester tester) async {
     final FakeTtsService system = FakeTtsService(
       engines: <String>[_BURMESE_ENGINE],
-      burmeseEngines: <String>{_BURMESE_ENGINE},
+      languagesByEngine: <String, List<String>>{_BURMESE_ENGINE: <String>['my-MM']},
     );
     await _pumpApp(tester, system: system);
 
@@ -79,6 +87,50 @@ void main() {
 
     expect(system.spokenText, isNotEmpty);
     expect(find.text('Pitch is not adjustable with MyanmarTTS.'), findsNothing);
+  });
+
+  testWidgets('lists every engine and lets the user pick its language', (WidgetTester tester) async {
+    const String otherEngine = 'com.google.android.tts';
+    final FakeTtsService system = FakeTtsService(
+      engines: <String>[otherEngine],
+      languagesByEngine: <String, List<String>>{
+        otherEngine: <String>['ja-JP', 'en-US'],
+      },
+    );
+    await _pumpApp(tester, system: system);
+    expect(find.text('Language'), findsOneWidget);
+    expect(find.text('my-MM'), findsOneWidget, reason: 'MyanmarTTS shows its single language');
+
+    await tester.tap(find.text(_ON_DEVICE_LABEL));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(otherEngine).last);
+    await tester.pumpAndSettle();
+    expect(find.text('en-US'), findsOneWidget, reason: 'first language alphabetically when Burmese is absent');
+
+    await tester.tap(find.text('en-US'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ja-JP').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'こんにちは');
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+
+    expect(system.activeLanguage, 'ja-JP');
+    expect(system.spokenText, 'こんにちは');
+  });
+
+  testWidgets('an engine without languages shows why and disables Speak', (WidgetTester tester) async {
+    const String silentEngine = 'com.example.silent';
+    await _pumpApp(tester, system: FakeTtsService(engines: <String>[silentEngine]));
+
+    await tester.tap(find.text(_ON_DEVICE_LABEL));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(silentEngine).last);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('did not report any languages'), findsOneWidget);
+    expect(find.text('Language'), findsNothing);
+    expect(_speakButton(tester).onPressed, isNull);
   });
 
   testWidgets('shows the model load error and disables Speak', (WidgetTester tester) async {
@@ -99,7 +151,7 @@ void main() {
     await tester.enterText(find.byType(TextField), '');
     await tester.tap(find.text('Speak'));
     await tester.pumpAndSettle();
-    expect(find.text('Enter some Burmese text first.'), findsOneWidget);
+    expect(find.text('Enter some text first.'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'hello');
     await tester.tap(find.text('Speak'));
@@ -136,25 +188,67 @@ void main() {
     expect(_downloadButton(tester).onPressed, isNull);
   });
 
-  testWidgets('Download is hidden for Android engines', (WidgetTester tester) async {
+  testWidgets('an Android engine that cannot provide its audio hides Play and Download and says why',
+      (WidgetTester tester) async {
     final FakeTtsService system = FakeTtsService(
       engines: <String>[_BURMESE_ENGINE],
-      burmeseEngines: <String>{_BURMESE_ENGINE},
+      languagesByEngine: <String, List<String>>{_BURMESE_ENGINE: <String>['my-MM']},
     );
     await _pumpApp(tester, system: system);
+    await tester.tap(find.text(_ON_DEVICE_LABEL));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(_BURMESE_ENGINE).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+    expect(system.speakCallCount, 1);
+
+    await tester.tap(find.text('Play'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('cannot provide its audio'), findsOneWidget);
+    expect(find.text('Download'), findsNothing);
+    expect(find.text('Play'), findsNothing);
+  });
+
+  testWidgets('an Android engine speaks first; Play renders the audio and shows the player',
+      (WidgetTester tester) async {
+    final FakeTtsService system = FakeTtsService(
+      engines: <String>[_BURMESE_ENGINE],
+      languagesByEngine: <String, List<String>>{_BURMESE_ENGINE: <String>['my-MM']},
+      exportingEngines: <String>{_BURMESE_ENGINE},
+    );
+    final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+    final FakeAudioFileSaver saver = FakeAudioFileSaver();
+    await _pumpApp(tester, system: system, onDevice: onDevice, saver: saver);
 
     await tester.tap(find.text(_ON_DEVICE_LABEL));
     await tester.pumpAndSettle();
     await tester.tap(find.text(_BURMESE_ENGINE).last);
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Download'), findsNothing);
+    expect(find.byType(WaveformView), findsNothing, reason: 'not rendered yet');
+    expect(find.text('Play'), findsOneWidget);
+    expect(system.synthesizeCallCount, 0);
+
+    await tester.tap(find.text('Play'));
+    await tester.pumpAndSettle();
+    expect(find.byType(WaveformView), findsOneWidget);
+    expect(find.text('0:00 / 0:01'), findsOneWidget);
+    expect(onDevice.replayed, <Object>[FakeTtsService.exportedAudio.wav]);
+
+    await tester.tap(find.text('Download'));
+    await tester.pumpAndSettle();
+    expect(saver.savedWav, FakeTtsService.exportedAudio.wav);
+    expect(system.synthesizeCallCount, 1);
   });
 
   testWidgets('Steps and CFG sliders show their values for MyanmarTTS only', (WidgetTester tester) async {
     final FakeTtsService system = FakeTtsService(
       engines: <String>[_BURMESE_ENGINE],
-      burmeseEngines: <String>{_BURMESE_ENGINE},
+      languagesByEngine: <String, List<String>>{_BURMESE_ENGINE: <String>['my-MM']},
     );
     await _pumpApp(tester, system: system);
 
@@ -180,7 +274,7 @@ void main() {
     await tester.tap(find.text('Speak'));
     await tester.pumpAndSettle();
     expect(find.byType(WaveformView), findsOneWidget);
-    expect(find.text('Generated audio · 0.5 s'), findsOneWidget);
+    expect(find.text('0:00 / 0:00'), findsOneWidget, reason: '0.5 s rounds down to 0:00');
 
     await tester.enterText(find.byType(TextField), 'ကခ');
     await tester.pump();
@@ -199,6 +293,50 @@ void main() {
     await tester.tap(find.text('Play'));
     await tester.pumpAndSettle();
     expect(onDevice.replayed, hasLength(1));
+  });
+
+  testWidgets('Pause and Resume replace Play while audio plays; tapping the waveform seeks',
+      (WidgetTester tester) async {
+    final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+    await _pumpApp(tester, onDevice: onDevice);
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+
+    onDevice.pendingReplay = Completer<void>();
+    await tester.tap(find.text('Play'));
+    await tester.pump();
+    expect(find.text('Pause'), findsOneWidget);
+    expect(find.text('Play'), findsNothing);
+
+    await tester.tap(find.text('Pause'));
+    await tester.pump();
+    expect(find.text('Resume'), findsOneWidget);
+    await tester.tap(find.text('Resume'));
+    await tester.pump();
+    expect(onDevice.controls, <String>['pause', 'resume']);
+
+    // Waveform ၏ ညာဘက်အစွန်း နားကို နှိပ်လျှင် အဆုံးနားသို့ ရွှေ့သည်။
+    final Rect waveform = tester.getRect(find.byType(WaveformView));
+    await tester.tapAt(Offset(waveform.right - 1, waveform.center.dy));
+    await tester.pump();
+    expect(onDevice.seeks.single, greaterThan(const Duration(milliseconds: 450)));
+
+    await tester.tap(find.text('Stop'));
+    await tester.pumpAndSettle();
+    expect(find.text('Play'), findsOneWidget);
+  });
+
+  testWidgets('tapping the waveform when idle plays from that point', (WidgetTester tester) async {
+    final FakeOnDeviceSpeaker onDevice = FakeOnDeviceSpeaker();
+    await _pumpApp(tester, onDevice: onDevice);
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+
+    final Rect waveform = tester.getRect(find.byType(WaveformView));
+    await tester.tapAt(waveform.center);
+    await tester.pumpAndSettle();
+
+    expect(onDevice.replayStarts.single, closeToDuration(const Duration(milliseconds: 250)));
   });
 
   testWidgets('chooses a preset voice for MyanmarTTS', (WidgetTester tester) async {
@@ -258,7 +396,7 @@ void main() {
   testWidgets('voice controls are hidden for Android engines', (WidgetTester tester) async {
     final FakeTtsService system = FakeTtsService(
       engines: <String>[_BURMESE_ENGINE],
-      burmeseEngines: <String>{_BURMESE_ENGINE},
+      languagesByEngine: <String, List<String>>{_BURMESE_ENGINE: <String>['my-MM']},
     );
     await _pumpApp(tester, system: system);
     expect(find.text('Record a voice'), findsOneWidget);

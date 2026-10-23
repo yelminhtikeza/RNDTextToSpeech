@@ -18,14 +18,17 @@ class AudioplayersAudioOutput implements AudioOutput {
   Completer<void>? _playback;
 
   @override
-  Future<void> playWav({required Uint8List wav}) async {
+  Stream<Duration> get positionChanges => _player.onPositionChanged;
+
+  @override
+  Future<void> playWav({required Uint8List wav, Duration startAt = Duration.zero}) async {
     final Completer<void> playback = Completer<void>();
     _playback = playback;
     final StreamSubscription<void> completion = _player.onPlayerComplete.listen((_) {
       if (!playback.isCompleted) playback.complete();
     });
     try {
-      await _player.play(BytesSource(wav, mimeType: MyanmarTtsConfig.WAV_MIME_TYPE));
+      await _player.play(BytesSource(wav, mimeType: MyanmarTtsConfig.WAV_MIME_TYPE), position: startAt);
       await playback.future;
     } on PlatformException catch (error, stackTrace) {
       developer.log('action=play result=failed code=${error.code}', name: _LOG_NAME, error: error, stackTrace: stackTrace);
@@ -34,6 +37,15 @@ class AudioplayersAudioOutput implements AudioOutput {
       await completion.cancel();
     }
   }
+
+  @override
+  Future<void> pause() => _guard(operation: 'pause', action: _player.pause);
+
+  @override
+  Future<void> resume() => _guard(operation: 'resume', action: _player.resume);
+
+  @override
+  Future<void> seek({required Duration position}) => _guard(operation: 'seek', action: () => _player.seek(position));
 
   @override
   Future<void> stop() async {
@@ -50,4 +62,15 @@ class AudioplayersAudioOutput implements AudioOutput {
 
   @override
   Future<void> dispose() => _player.dispose();
+
+  /// Pause/resume/seek မအောင်မြင်ခြင်းသည် ဖွင့်ခြင်းကို မထိခိုက်သဖြင့် log ထုတ်ပြီး UI သို့ [AudioOutputException] အဖြစ် ပို့သည်။
+  Future<void> _guard({required String operation, required Future<void> Function() action}) async {
+    try {
+      await action();
+    } on PlatformException catch (error, stackTrace) {
+      developer.log('action=$operation result=failed code=${error.code}',
+          name: _LOG_NAME, error: error, stackTrace: stackTrace);
+      throw AudioOutputException(operation: operation, platformMessage: error.message);
+    }
+  }
 }
