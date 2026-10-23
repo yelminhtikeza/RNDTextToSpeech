@@ -152,6 +152,30 @@ abstract class AppLocalizations {
   /// **'Language'**
   String get languageLabel;
 
+  /// No description provided for @engineVoiceDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get engineVoiceDefault;
+
+  /// No description provided for @engineVoiceNumbered.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice {number}'**
+  String engineVoiceNumbered(int number);
+
+  /// No description provided for @engineVoiceOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice {number} · online'**
+  String engineVoiceOnline(int number);
+
+  /// No description provided for @errorEngineVoiceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This voice could not be used. The engine default voice is used instead.'**
+  String get errorEngineVoiceUnavailable;
+
   /// No description provided for @errorNoLanguages.
   ///
   /// In en, this message translates to:

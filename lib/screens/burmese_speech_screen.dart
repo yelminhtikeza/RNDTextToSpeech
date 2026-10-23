@@ -7,6 +7,7 @@ import '../config/tts_config.dart';
 import '../l10n/app_localizations.dart';
 import '../models/audio_save_result.dart';
 import '../models/burmese_speech_state.dart';
+import '../models/engine_voice.dart';
 import '../providers/burmese_speech_controller.dart';
 import '../widgets/app_button.dart';
 import '../widgets/voice_section.dart';
@@ -195,6 +196,7 @@ class _BurmeseSpeechScreenState extends ConsumerState<BurmeseSpeechScreen> {
       // Engine အမှားများကို engine အပိုင်းတွင် ပြပြီးဖြစ်သည်။
       SpeechError.voiceUnavailable => l10n.errorVoiceUnavailable,
       SpeechError.audioUnavailable => l10n.errorAudioUnavailable,
+      SpeechError.engineVoiceUnavailable => speechState.platformMessage ?? l10n.errorEngineVoiceUnavailable,
       SpeechError.modelLoadFailed || SpeechError.languageUnavailable || SpeechError.noLanguages => null,
     };
   }
@@ -263,6 +265,36 @@ class _EngineStatusSection extends StatelessWidget {
             onChanged: speechState.canChooseLanguage
                 ? (String? language) {
                     if (language != null) controller.selectLanguage(languageTag: language);
+                  }
+                : null,
+          ),
+        ],
+        if (speechState.supportsEngineVoices) ...<Widget>[
+          const SizedBox(height: AppTheme.SPACING),
+          DropdownButtonFormField<String>(
+            key: ValueKey<String>('${speechState.selectedEngine}|${speechState.selectedLanguage}|'
+                '${speechState.selectedEngineVoice}'),
+            initialValue: speechState.selectedEngineVoice,
+            isExpanded: true,
+            decoration: InputDecoration(labelText: l10n.voiceLabel, border: const OutlineInputBorder()),
+            // Android သည် လူအမည်/ကျားမ မပေးသဖြင့် နံပါတ်ဖြင့် ပြပြီး online အသံကို မှတ်ပြသည် (internet မရှိလျှင် မထွက်)။
+            items: <DropdownMenuItem<String>>[
+              DropdownMenuItem<String>(
+                value: TtsConfig.ENGINE_DEFAULT_VOICE_ID,
+                child: Text(l10n.engineVoiceDefault),
+              ),
+              for (final (int index, EngineVoice voice) in speechState.engineVoices.indexed)
+                DropdownMenuItem<String>(
+                  value: voice.name,
+                  child: Text(
+                    voice.requiresNetwork ? l10n.engineVoiceOnline(index + 1) : l10n.engineVoiceNumbered(index + 1),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+            onChanged: speechState.canChooseEngineVoice
+                ? (String? voiceId) {
+                    if (voiceId != null) controller.selectEngineVoice(voiceId: voiceId);
                   }
                 : null,
           ),

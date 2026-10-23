@@ -1,3 +1,4 @@
+import '../models/engine_voice.dart';
 import '../myanmartts/waveform_summary.dart';
 
 /// စက်ပေါ်ရှိ TTS engine နှင့် ဆက်သွယ်သည့် boundary။
@@ -12,7 +13,13 @@ abstract interface class TtsService {
   /// ရွေးထားသော engine ပံ့ပိုးသည့် ဘာသာများ (BCP 47 tag၊ ဥပမာ `en-US`)။
   Future<List<String>> getLanguages();
 
+  /// ဘာသာကို ပြောင်းသည် — Android သည် ထိုဘာသာ၏ ပုံသေ အသံသို့ ပြန်ပြောင်းသည်။
   Future<bool> setLanguage({required String languageTag});
+
+  /// ရွေးထားသော engine ၏ ထည့်သွင်းပြီး (data ဒေါင်းပြီး) အသံများ။
+  Future<List<EngineVoice>> getVoices();
+
+  Future<bool> setVoice({required EngineVoice voice});
 
   Future<void> setSpeechRate({required double rate});
 

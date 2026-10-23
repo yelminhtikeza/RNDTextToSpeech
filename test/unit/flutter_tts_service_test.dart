@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:rnd_text_to_speech/models/engine_voice.dart';
 import 'package:rnd_text_to_speech/myanmartts/waveform_summary.dart';
 import 'package:rnd_text_to_speech/services/flutter_tts_service.dart';
 
@@ -46,6 +47,8 @@ void main() {
   late FlutterTts flutterTts;
   late FlutterTtsService service;
   late List<String> calls;
+  List<Object?> platformVoices = <Object?>[];
+  Map<Object?, Object?>? setVoiceArguments;
 
   /// synthesizeToFile ခေါ်ချိန်တွင် platform (engine) ဘက်မှ လုပ်မည့်အရာ။
   late Future<void> Function(String path) onSynthesize;
@@ -58,6 +61,11 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(_CHANNEL,
         (MethodCall call) async {
       calls.add(call.method);
+      if (call.method == 'getVoices') return platformVoices;
+      if (call.method == 'setVoice') {
+        setVoiceArguments = call.arguments as Map<Object?, Object?>;
+        return 1;
+      }
       if (call.method == 'synthesizeToFile') {
         final Map<Object?, Object?> arguments = call.arguments as Map<Object?, Object?>;
         expect(arguments['isFullPath'], isTrue, reason: 'must write into the app folder, not shared Music');
@@ -96,6 +104,34 @@ void main() {
     expect(ByteData.sublistView(audio.wav).getUint16(22, Endian.little), 1, reason: 'app format is mono');
     expect(File(writtenPath).existsSync(), isTrue, reason: 'the latest audio stays until it is overwritten');
     expect(calls, isNot(contains('awaitSynthCompletion')), reason: 'the plugin never resolves it on error or stop');
+  });
+
+  test('lists installed voices, flags online ones and skips voices whose data is not downloaded', () async {
+    platformVoices = <Object?>[
+      <Object?, Object?>{'name': 'en-us-x-a-local', 'locale': 'en-US', 'network_required': '0', 'features': ''},
+      <Object?, Object?>{'name': 'en-us-x-a-network', 'locale': 'en-US', 'network_required': '1', 'features': 'x'},
+      <Object?, Object?>{
+        'name': 'en-gb-x-b-local',
+        'locale': 'en-GB',
+        'network_required': '0',
+        'features': 'embeddedTts\tnotInstalled',
+      },
+      <Object?, Object?>{'locale': 'en-US'},
+    ];
+
+    final List<EngineVoice> voices = await service.getVoices();
+
+    expect(voices.map((EngineVoice voice) => voice.name), <String>['en-us-x-a-local', 'en-us-x-a-network']);
+    expect(voices.map((EngineVoice voice) => voice.requiresNetwork), <bool>[false, true]);
+  });
+
+  test('setVoice sends the name and locale the plugin matches on', () async {
+    final bool isSet = await service.setVoice(
+      voice: const EngineVoice(name: 'en-us-x-a-local', locale: 'en-US', requiresNetwork: false),
+    );
+
+    expect(isSet, isTrue);
+    expect(setVoiceArguments, <String, String>{'name': 'en-us-x-a-local', 'locale': 'en-US'});
   });
 
   test('gives up when the engine never starts (file output unsupported)', () async {

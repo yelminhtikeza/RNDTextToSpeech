@@ -1,5 +1,6 @@
 import '../config/myanmartts_config.dart';
 import '../config/tts_config.dart';
+import 'engine_voice.dart';
 import '../myanmartts/waveform_summary.dart';
 
 enum SpeechStatus {
@@ -38,6 +39,9 @@ enum SpeechError {
   /// Android engine က ဘာသာ တစ်ခုမျှ မပြန်ပေး (သို့မဟုတ် စာရင်း ယူ၍ မရ)။
   noLanguages,
 
+  /// Android engine က ရွေးထားသော အသံကို လက်မခံ (data ဖျက်ထား/network မရ စသည်)။
+  engineVoiceUnavailable,
+
   /// MyanmarTTS အသံစာရင်း မရသေး/မရ (load မပြီး သို့မဟုတ် မအောင်မြင်)။
   voiceUnavailable,
 
@@ -52,6 +56,8 @@ class BurmeseSpeechState {
     this.selectedEngine,
     this.languages = const <String>[],
     this.selectedLanguage,
+    this.engineVoices = const <EngineVoice>[],
+    this.selectedEngineVoice = TtsConfig.ENGINE_DEFAULT_VOICE_ID,
     this.speechRate = TtsConfig.SPEECH_RATE_DEFAULT,
     this.pitch = TtsConfig.PITCH_DEFAULT,
     this.flowSteps = MyanmarTtsConfig.FLOW_STEPS_DEFAULT,
@@ -80,6 +86,12 @@ class BurmeseSpeechState {
   /// ရွေးထားသော engine ပံ့ပိုးသည့် ဘာသာများ (BCP 47 tag) — engine ပြောင်းတိုင်း ပြန်ယူသည်။
   final List<String> languages;
   final String? selectedLanguage;
+
+  /// Android engine ၏ ရွေးထားသော ဘာသာအတွက် အသံများ (အမည်အစဉ်) — MyanmarTTS တွင် ဗလာ (ကိုယ်ပိုင် အသံစာရင်း ရှိ)။
+  final List<EngineVoice> engineVoices;
+
+  /// [EngineVoice.name] သို့မဟုတ် [TtsConfig.ENGINE_DEFAULT_VOICE_ID]။
+  final String selectedEngineVoice;
   final double speechRate;
   final double pitch;
 
@@ -162,10 +174,17 @@ class BurmeseSpeechState {
   /// ဘာသာ တစ်ခုထက်ပိုမှသာ ရွေးစရာ ရှိသည် (MyanmarTTS တွင် မြန်မာ တစ်ခုတည်း)။
   bool get canChooseLanguage => languages.length > 1 && canChooseEngine;
 
+  /// ပုံသေ အပြင် အသံ ရှိမှသာ dropdown ပြသည်။
+  bool get supportsEngineVoices => !isOnDeviceSelected && engineVoices.isNotEmpty;
+
+  bool get canChooseEngineVoice => supportsEngineVoices && canChooseEngine;
+
   BurmeseSpeechState copyWith({
     SpeechStatus? status,
     List<String>? engines,
     String? selectedEngine,
+    List<EngineVoice>? engineVoices,
+    String? selectedEngineVoice,
     double? speechRate,
     double? pitch,
     int? flowSteps,
@@ -187,6 +206,8 @@ class BurmeseSpeechState {
       selectedEngine: selectedEngine ?? this.selectedEngine,
       languages: languages,
       selectedLanguage: selectedLanguage,
+      engineVoices: engineVoices ?? this.engineVoices,
+      selectedEngineVoice: selectedEngineVoice ?? this.selectedEngineVoice,
       speechRate: speechRate ?? this.speechRate,
       pitch: pitch ?? this.pitch,
       flowSteps: flowSteps ?? this.flowSteps,
@@ -212,6 +233,9 @@ class BurmeseSpeechState {
       selectedEngine: selectedEngine,
       languages: languages,
       selectedLanguage: selectedLanguage,
+      // အသံသည် ဘာသာအလိုက် ဖြစ်၍ ဘာသာစာရင်း ပြောင်းလျှင် ပုံသေသို့ ပြန်ထားသည်။
+      engineVoices: const <EngineVoice>[],
+      selectedEngineVoice: TtsConfig.ENGINE_DEFAULT_VOICE_ID,
       speechRate: speechRate,
       pitch: pitch,
       flowSteps: flowSteps,
@@ -239,6 +263,8 @@ class BurmeseSpeechState {
       selectedEngine: selectedEngine,
       languages: languages,
       selectedLanguage: selectedLanguage,
+      engineVoices: engineVoices,
+      selectedEngineVoice: selectedEngineVoice,
       speechRate: speechRate,
       pitch: pitch,
       flowSteps: flowSteps,

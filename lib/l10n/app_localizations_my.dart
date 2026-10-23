@@ -36,6 +36,23 @@ class AppLocalizationsMy extends AppLocalizations {
   String get languageLabel => 'ဘာသာစကား';
 
   @override
+  String get engineVoiceDefault => 'ပုံသေ';
+
+  @override
+  String engineVoiceNumbered(int number) {
+    return 'အသံ $number';
+  }
+
+  @override
+  String engineVoiceOnline(int number) {
+    return 'အသံ $number · အွန်လိုင်း';
+  }
+
+  @override
+  String get errorEngineVoiceUnavailable =>
+      'ဤအသံကို သုံး၍ မရပါ။ Engine ၏ ပုံသေ အသံကို သုံးပါမည်။';
+
+  @override
   String get errorNoLanguages =>
       'ဤ Engine သည် ဘာသာစကား စာရင်း မပေးပါ။ အခြား Engine ကို ရွေးပါ သို့မဟုတ် ၎င်း၏ setting ကို စစ်ပြီး ပြန်ကြိုးစားပါ။';
 

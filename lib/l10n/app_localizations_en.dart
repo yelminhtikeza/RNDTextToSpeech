@@ -36,6 +36,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get languageLabel => 'Language';
 
   @override
+  String get engineVoiceDefault => 'Default';
+
+  @override
+  String engineVoiceNumbered(int number) {
+    return 'Voice $number';
+  }
+
+  @override
+  String engineVoiceOnline(int number) {
+    return 'Voice $number · online';
+  }
+
+  @override
+  String get errorEngineVoiceUnavailable =>
+      'This voice could not be used. The engine default voice is used instead.';
+
+  @override
   String get errorNoLanguages =>
       'This speech engine did not report any languages. Choose another engine, or check its settings and try again.';
 

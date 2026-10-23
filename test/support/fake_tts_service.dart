@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'dart:typed_data';
 
+import 'package:rnd_text_to_speech/models/engine_voice.dart';
 import 'package:rnd_text_to_speech/myanmartts/wav_encoder.dart';
 import 'package:rnd_text_to_speech/myanmartts/waveform_summary.dart';
 import 'package:rnd_text_to_speech/services/tts_service.dart';
@@ -16,7 +17,21 @@ class FakeTtsService implements TtsService {
     this.isSpeakSuccessful = true,
     this.failingOperation,
     this.exportingEngines = const <String>{},
+    this.voicesByEngine = const <String, List<EngineVoice>>{},
+    this.rejectedVoices = const <String>{},
   });
+
+  final Map<String, List<EngineVoice>> voicesByEngine;
+
+  /// setVoice က 0 ပြန်ပေးမည့် အသံအမည်များ။
+  final Set<String> rejectedVoices;
+
+  /// setLanguage ခေါ်လျှင် engine ၏ ပုံသေ (null) သို့ ပြန်ရောက်သည် — Android အတိုင်း။
+  String? activeVoice;
+
+  /// ဖတ်ချိန်/ဖိုင်ထုတ်ချိန်တွင် engine ၌ ရှိနေသော အသံ။
+  String? voiceWhenSpoken;
+  String? voiceWhenSynthesized;
 
   /// WAV ဖိုင်ထုတ်နိုင်သော engine များ — မပါသော engine သည် synthesizeAudio တွင် null (မပံ့ပိုး) ပြန်ပေးသည်။
   final Set<String> exportingEngines;
@@ -83,8 +98,24 @@ class FakeTtsService implements TtsService {
   Future<bool> setLanguage({required String languageTag}) async {
     final bool isSupported = (languagesByEngine[activeEngine] ?? const <String>[]).contains(languageTag) &&
         !rejectedLanguages.contains(languageTag);
-    if (isSupported) activeLanguage = languageTag;
+    if (isSupported) {
+      activeLanguage = languageTag;
+      activeVoice = null;
+    }
     return isSupported;
+  }
+
+  @override
+  Future<List<EngineVoice>> getVoices() async {
+    _failIf(operation: 'getVoices');
+    return voicesByEngine[activeEngine] ?? const <EngineVoice>[];
+  }
+
+  @override
+  Future<bool> setVoice({required EngineVoice voice}) async {
+    if (rejectedVoices.contains(voice.name)) return false;
+    activeVoice = voice.name;
+    return true;
   }
 
   @override
@@ -100,6 +131,7 @@ class FakeTtsService implements TtsService {
   Future<bool> speak({required String text}) async {
     _failIf(operation: 'speak');
     speakCallCount++;
+    voiceWhenSpoken = activeVoice;
     spokenText = text;
     final Completer<bool>? pending = pendingSpeak;
     return pending == null ? isSpeakSuccessful : pending.future;
@@ -115,6 +147,7 @@ class FakeTtsService implements TtsService {
       return null;
     }
     if (!exportingEngines.contains(activeEngine)) return null;
+    voiceWhenSynthesized = activeVoice;
     spokenText = text;
     return exportedAudio;
   }

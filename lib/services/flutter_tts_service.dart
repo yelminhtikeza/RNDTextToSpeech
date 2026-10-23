@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../config/myanmartts_config.dart';
 import '../config/tts_config.dart';
+import '../models/engine_voice.dart';
 import '../myanmartts/waveform_summary.dart';
 import 'tts_service.dart';
 
@@ -75,6 +76,44 @@ class FlutterTtsService implements TtsService {
         action: () async =>
             await _flutterTts.setLanguage(languageTag) == TtsConfig.PLATFORM_SUCCESS,
       );
+
+  @override
+  Future<List<EngineVoice>> getVoices() => _guard(
+        operation: 'getVoices',
+        action: () async {
+          final Object? voices = await _flutterTts.getVoices;
+          if (voices is! List) return <EngineVoice>[];
+          return voices.whereType<Map<Object?, Object?>>().map(_toEngineVoice).nonNulls.toList();
+        },
+      );
+
+  @override
+  Future<bool> setVoice({required EngineVoice voice}) => _guard(
+        operation: 'setVoice',
+        action: () async =>
+            await _flutterTts.setVoice(<String, String>{
+              TtsConfig.VOICE_KEY_NAME: voice.name,
+              TtsConfig.VOICE_KEY_LOCALE: voice.locale,
+            }) ==
+            TtsConfig.PLATFORM_SUCCESS,
+      );
+
+  /// Data မဒေါင်းရသေးသော အသံ (ရွေးလျှင် အသံမထွက်) နှင့် အမည်/locale မပါသော entry ကို ဖယ်သည်။
+  static EngineVoice? _toEngineVoice(Map<Object?, Object?> voice) {
+    final Object? name = voice[TtsConfig.VOICE_KEY_NAME];
+    final Object? locale = voice[TtsConfig.VOICE_KEY_LOCALE];
+    final Object? features = voice[TtsConfig.VOICE_KEY_FEATURES];
+    if (name is! String || locale is! String) return null;
+    if (features is String &&
+        features.split(TtsConfig.VOICE_FEATURE_SEPARATOR).contains(TtsConfig.VOICE_FEATURE_NOT_INSTALLED)) {
+      return null;
+    }
+    return EngineVoice(
+      name: name,
+      locale: locale,
+      requiresNetwork: voice[TtsConfig.VOICE_KEY_NETWORK_REQUIRED] == TtsConfig.VOICE_NETWORK_REQUIRED_TRUE,
+    );
+  }
 
   @override
   Future<void> setSpeechRate({required double rate}) => _guard(

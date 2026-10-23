@@ -6,6 +6,7 @@ import 'package:rnd_text_to_speech/config/myanmartts_config.dart';
 import 'package:rnd_text_to_speech/config/tts_config.dart';
 import 'package:rnd_text_to_speech/models/audio_save_result.dart';
 import 'package:rnd_text_to_speech/models/burmese_speech_state.dart';
+import 'package:rnd_text_to_speech/models/engine_voice.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/providers/burmese_speech_controller.dart';
 import 'package:rnd_text_to_speech/providers/voice_controller.dart';
@@ -504,6 +505,95 @@ void main() {
       await replaying;
       expect(onDevice.stopCallCount, 1);
       expect(_stateOf(container).canDownload, isTrue, reason: 'stopping playback keeps the rendered audio');
+    });
+  });
+
+  group('Android engine voices', () {
+    const EngineVoice usLocal = EngineVoice(name: 'en-us-x-b', locale: 'en-US', requiresNetwork: false);
+    const EngineVoice usNetwork = EngineVoice(name: 'en-us-x-a', locale: 'en-US', requiresNetwork: true);
+    const EngineVoice french = EngineVoice(name: 'fr-fr-x-a', locale: 'fr-FR', requiresNetwork: false);
+    late FakeTtsService system;
+    late ProviderContainer container;
+
+    Future<void> useEngine({Set<String> rejected = const <String>{}, String? failingOperation}) async {
+      system = FakeTtsService(
+        engines: <String>[_GOOGLE],
+        languagesByEngine: <String, List<String>>{_GOOGLE: <String>['en-US', 'fr-FR']},
+        voicesByEngine: <String, List<EngineVoice>>{_GOOGLE: <EngineVoice>[usLocal, french, usNetwork]},
+        exportingEngines: <String>{_GOOGLE},
+        rejectedVoices: rejected,
+        failingOperation: failingOperation,
+      );
+      container = await _createDetectedContainer(system: system);
+      await _controllerOf(container).selectEngine(engineName: _GOOGLE);
+    }
+
+    test('lists the voices of the selected language by name, with the engine default selected', () async {
+      await useEngine();
+
+      expect(_stateOf(container).engineVoices, <EngineVoice>[usNetwork, usLocal]);
+      expect(_stateOf(container).selectedEngineVoice, TtsConfig.ENGINE_DEFAULT_VOICE_ID);
+      expect(_stateOf(container).canChooseEngineVoice, isTrue);
+
+      await _controllerOf(container).selectLanguage(languageTag: 'fr-FR');
+      expect(_stateOf(container).engineVoices, <EngineVoice>[french]);
+      expect(_stateOf(container).selectedEngineVoice, TtsConfig.ENGINE_DEFAULT_VOICE_ID);
+    });
+
+    test('speaks and renders with the chosen voice', () async {
+      await useEngine();
+      await _controllerOf(container).selectEngineVoice(voiceId: usLocal.name);
+
+      await _controllerOf(container).speak(text: 'hello');
+      await _controllerOf(container).replayGeneratedAudio();
+
+      expect(system.voiceWhenSpoken, usLocal.name);
+      expect(system.voiceWhenSynthesized, usLocal.name);
+    });
+
+    test('choosing Default goes back to the engine voice', () async {
+      await useEngine();
+      await _controllerOf(container).selectEngineVoice(voiceId: usLocal.name);
+      await _controllerOf(container).selectEngineVoice(voiceId: TtsConfig.ENGINE_DEFAULT_VOICE_ID);
+
+      await _controllerOf(container).speak(text: 'hello');
+
+      expect(system.voiceWhenSpoken, isNull);
+    });
+
+    test('changing the voice discards audio made with the previous voice', () async {
+      await useEngine();
+      await _controllerOf(container).speak(text: 'hello');
+      expect(_stateOf(container).hasPlayableAudio, isTrue);
+
+      await _controllerOf(container).selectEngineVoice(voiceId: usLocal.name);
+
+      expect(_stateOf(container).hasPlayableAudio, isFalse);
+    });
+
+    test('a rejected voice falls back to Default and says why without blocking Speak', () async {
+      await useEngine(rejected: <String>{usNetwork.name});
+
+      await _controllerOf(container).selectEngineVoice(voiceId: usNetwork.name);
+
+      expect(_stateOf(container).error, SpeechError.engineVoiceUnavailable);
+      expect(_stateOf(container).selectedEngineVoice, TtsConfig.ENGINE_DEFAULT_VOICE_ID);
+      expect(_stateOf(container).canSpeak, isTrue);
+    });
+
+    test('a failing voice list leaves only the engine default', () async {
+      await useEngine(failingOperation: 'getVoices');
+
+      expect(_stateOf(container).supportsEngineVoices, isFalse);
+      expect(_stateOf(container).status, SpeechStatus.ready);
+    });
+
+    test('MyanmarTTS does not show engine voices', () async {
+      await useEngine();
+      await _controllerOf(container).selectEngine(engineName: _ON_DEVICE);
+
+      expect(_stateOf(container).supportsEngineVoices, isFalse);
+      expect(_stateOf(container).supportsVoices, isTrue);
     });
   });
 

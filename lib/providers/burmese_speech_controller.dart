@@ -12,6 +12,7 @@ import '../config/myanmartts_config.dart';
 import '../config/tts_config.dart';
 import '../models/audio_save_result.dart';
 import '../models/burmese_speech_state.dart';
+import '../models/engine_voice.dart';
 import '../models/voice_profile.dart';
 import '../myanmartts/myanmar_tts_models.dart';
 import '../myanmartts/myanmar_tts_speaker.dart';
@@ -64,9 +65,12 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
   /// WAV ဖိုင်ထုတ်မှု မအောင်မြင်ခဲ့သော Android engine များ — ဖတ်တိုင်း အလကား မထုတ်စေရန် (app ဖွင့်ထားစဉ်သာ မှတ်)။
   final Set<String> _enginesWithoutAudioExport = <String>{};
 
-  /// Android engine ဖြင့် အဆုံးထိ ဖတ်ခဲ့သော စာနှင့် ထိုအချိန်၏ နှုန်း/pitch — Play/Download နှိပ်မှ ကြားခဲ့သည့်အတိုင်း
-  /// ဖိုင်ထုတ်ရန် (slider ကို နောက်မှ ရွှေ့ထားလည်း)။
-  ({String text, double rate, double pitch})? _renderableSpeech;
+  /// Android engine ဖြင့် အဆုံးထိ ဖတ်ခဲ့သော စာနှင့် ထိုအချိန်၏ ဘာသာ/အသံ/နှုန်း/pitch — Play/Download နှိပ်မှ ကြားခဲ့သည့်အတိုင်း
+  /// ဖိုင်ထုတ်ရန် (slider/အသံကို နောက်မှ ပြောင်းထားလည်း)။
+  _SpokenSettings? _renderableSpeech;
+
+  /// ရွေးထားသော Android engine ၏ အသံအားလုံး — ဘာသာ ပြောင်းတိုင်း engine ကို ထပ်မမေးဘဲ စစ်ထုတ်ရန်။
+  List<EngineVoice> _engineVoices = const <EngineVoice>[];
 
   /// ထုတ်နေသော engine အသံ၏ အမှတ်စဉ် — စာပြင်/ထပ်ဖတ်/engine ပြောင်းပြီးမှ ရောက်လာသော ဟောင်းနေသည့် ရလဒ်ကို လျစ်လျူရှုရန်။
   int _audioGeneration = 0;
@@ -111,6 +115,55 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
           selectedLanguage: languageTag,
         );
     await _applySystemLanguage(languageTag: languageTag);
+  }
+
+  /// Android engine ၏ အသံ ပြောင်းသည်။ ကြားခဲ့သော အသံနှင့် မကိုက်တော့သဖြင့် ယခင်ထုတ်ထားသော အသံကို ဖျက်သည်။
+  Future<void> selectEngineVoice({required String voiceId}) async {
+    final String? languageTag = state.selectedLanguage;
+    if (!state.canChooseEngineVoice || languageTag == null) return;
+    discardGeneratedAudio();
+    state = state.copyWith(selectedEngineVoice: voiceId);
+    try {
+      final bool isApplied = await _applyEngineVoice(languageTag: languageTag, voiceId: voiceId);
+      if (!ref.mounted) return;
+      developer.log('action=selectEngineVoice engine=${state.selectedEngine} voice=$voiceId result=$isApplied',
+          name: _LOG_NAME);
+      if (!isApplied) _rejectEngineVoice();
+    } on TtsServiceException catch (error) {
+      if (!ref.mounted) return;
+      _rejectEngineVoice(platformMessage: error.platformMessage);
+    }
+  }
+
+  /// လက်မခံသော အသံကို ပုံသေသို့ ပြန်ထားပြီး အကြောင်းရင်း ပြသည် — ဖတ်ခြင်းကို မပိတ်ပါ။
+  void _rejectEngineVoice({String? platformMessage}) {
+    state = state
+        .copyWith(selectedEngineVoice: TtsConfig.ENGINE_DEFAULT_VOICE_ID)
+        .withError(error: SpeechError.engineVoiceUnavailable, status: state.status, platformMessage: platformMessage);
+  }
+
+  /// ဘာသာကို အရင်သတ်မှတ်ခြင်းဖြင့် engine ၏ ပုံသေ အသံသို့ ပြန်ရောက်ပြီး ရွေးထားသော အသံ ရှိမှသာ ထပ်ပြောင်းသည်။
+  Future<bool> _applyEngineVoice({required String languageTag, required String voiceId}) async {
+    if (!await _tts.setLanguage(languageTag: languageTag)) return false;
+    if (voiceId == TtsConfig.ENGINE_DEFAULT_VOICE_ID) return true;
+    final EngineVoice? voice = _engineVoices.where((EngineVoice candidate) => candidate.name == voiceId).firstOrNull;
+    return voice != null && await _tts.setVoice(voice: voice);
+  }
+
+  /// ဘာသာ tag တူသော အသံများကို အမည်အစဉ်ဖြင့် — "အသံ 1၊ 2…" နံပါတ် မပြောင်းစေရန်။
+  List<EngineVoice> _engineVoicesFor({required String languageTag}) => _engineVoices
+      .where((EngineVoice voice) => voice.locale == languageTag)
+      .toList()
+    ..sort((EngineVoice a, EngineVoice b) => a.name.compareTo(b.name));
+
+  /// အသံစာရင်း မရခြင်းသည် ပုံသေ အသံဖြင့် ဆက်ဖတ်နိုင်သဖြင့် အမှားမဟုတ် — log သာ ထုတ်သည်။
+  Future<List<EngineVoice>> _loadEngineVoices() async {
+    try {
+      return await _tts.getVoices();
+    } on TtsServiceException catch (error) {
+      developer.log('action=getVoices engine=${state.selectedEngine} result=failed', name: _LOG_NAME, error: error);
+      return const <EngineVoice>[];
+    }
   }
 
   void updateSpeechRate({required double rate}) {
@@ -329,6 +382,7 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
     try {
       await _tts.selectEngine(engineName: engineName);
       languages = List<String>.of(await _tts.getLanguages())..sort();
+      _engineVoices = await _loadEngineVoices();
       final int maxInputLength = await _tts.getMaxInputLength();
       if (!ref.mounted) return;
       state = state.copyWith(maxInputLength: maxInputLength);
@@ -367,7 +421,7 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
       developer.log('action=selectLanguage engine=${state.selectedEngine} language=$languageTag '
           'result=$isLanguageSet', name: _LOG_NAME);
       state = isLanguageSet
-          ? state.copyWith(status: SpeechStatus.ready)
+          ? state.copyWith(status: SpeechStatus.ready, engineVoices: _engineVoicesFor(languageTag: languageTag))
           : state.withError(error: SpeechError.languageUnavailable, status: SpeechStatus.engineUnavailable);
     } on TtsServiceException catch (error) {
       if (!ref.mounted) return;
@@ -424,9 +478,14 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
   /// waveform/player/download ပေးသည်။ Android သည် engine ဖတ်နေသော အသံကို app သို့ မပေးသဖြင့် ထပ်ထုတ်ရခြင်း ဖြစ်သည် (ADR 0005)။
   Future<void> _speakWithSystemEngine({required String text}) async {
     try {
-      // Slider ရွှေ့တိုင်း platform ကို မခေါ်ဘဲ ဖတ်ခါနီးမှ တစ်ကြိမ်သာ သတ်မှတ်သည် — နောက်ဖိုင်ထုတ်ရာတွင်လည်း သက်ရောက်သည်။
-      await _tts.setSpeechRate(rate: state.speechRate);
-      await _tts.setPitch(pitch: state.pitch);
+      final _SpokenSettings settings = _SpokenSettings(
+        text: text,
+        languageTag: state.selectedLanguage,
+        voiceId: state.selectedEngineVoice,
+        rate: state.speechRate,
+        pitch: state.pitch,
+      );
+      await _applySpokenSettings(settings: settings);
       final bool isSpoken = await _tts.speak(text: text);
       if (!ref.mounted) return;
       developer.log(
@@ -439,27 +498,33 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
         state = state.withError(error: SpeechError.speakFailed, status: SpeechStatus.ready);
         return;
       }
-      if (state.supportsAudioExport) {
-        _renderableSpeech = (text: text, rate: state.speechRate, pitch: state.pitch);
-      }
+      if (state.supportsAudioExport) _renderableSpeech = settings;
       state = state.copyWith(status: SpeechStatus.ready, hasRenderableSpeech: _renderableSpeech != null);
     } on TtsServiceException catch (error) {
       _reportSpeakFailure(platformMessage: error.platformMessage);
     }
   }
 
+  /// Slider/အသံ ပြောင်းတိုင်း platform ကို မခေါ်ဘဲ ဖတ်ခါနီး/ဖိုင်ထုတ်ခါနီးမှ သတ်မှတ်သည် — ဖိုင်ထုတ်ရာတွင် ကြားခဲ့သည့် setting
+  /// ကို ပြန်သုံးပြီးနောက် engine သည် ထို setting ဖြင့် ကျန်နေနိုင်၍ ဖတ်တိုင်း လက်ရှိ ရွေးချယ်မှုကို ပြန်သတ်မှတ်ရသည်။
+  Future<void> _applySpokenSettings({required _SpokenSettings settings}) async {
+    final String? languageTag = settings.languageTag;
+    if (languageTag != null) await _applyEngineVoice(languageTag: languageTag, voiceId: settings.voiceId);
+    await _tts.setSpeechRate(rate: settings.rate);
+    await _tts.setPitch(pitch: settings.pitch);
+  }
+
   /// ထုတ်ပြီးသား အသံ ရှိ/မရှိ — Android engine ၏ ဖတ်ခဲ့သောစာ ဆိုလျှင် ယခုမှ ဖိုင်ထုတ်သည် (option C၊ ADR 0005)။
   /// ဖိုင်ထုတ်မှု မရပါက engine ကို မှတ်ထားပြီး Play/Download ကို ဖျောက်ကာ အကြောင်းရင်း ပြသည်။
   Future<bool> _ensureGeneratedAudio() async {
     if (_downloadableAudio != null) return true;
-    final ({String text, double rate, double pitch})? speech = _renderableSpeech;
+    final _SpokenSettings? speech = _renderableSpeech;
     if (speech == null) return false;
     final int generation = ++_audioGeneration;
     state = state.copyWith(isPreparingAudio: true);
     SpokenAudio? audio;
     try {
-      await _tts.setSpeechRate(rate: speech.rate);
-      await _tts.setPitch(pitch: speech.pitch);
+      await _applySpokenSettings(settings: speech);
       audio = await _exportSystemAudio(text: speech.text);
     } on TtsServiceException catch (error) {
       developer.log('action=exportAudio result=failed', name: _LOG_NAME, error: error);
@@ -537,4 +602,21 @@ class BurmeseSpeechController extends Notifier<BurmeseSpeechState> {
       platformMessage: platformMessage,
     );
   }
+}
+
+/// Android engine ဖြင့် ဖတ်ခဲ့သော စာနှင့် setting — ဖိုင်ထုတ်ချိန်တွင် ကြားခဲ့သည့်အတိုင်း ပြန်သုံးရန်။
+class _SpokenSettings {
+  const _SpokenSettings({
+    required this.text,
+    required this.languageTag,
+    required this.voiceId,
+    required this.rate,
+    required this.pitch,
+  });
+
+  final String text;
+  final String? languageTag;
+  final String voiceId;
+  final double rate;
+  final double pitch;
 }

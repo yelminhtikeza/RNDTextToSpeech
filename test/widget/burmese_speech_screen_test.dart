@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rnd_text_to_speech/main.dart';
+import 'package:rnd_text_to_speech/models/engine_voice.dart';
 import 'package:rnd_text_to_speech/myanmartts/myanmar_tts_models.dart';
 import 'package:rnd_text_to_speech/providers/burmese_speech_controller.dart';
 import 'package:rnd_text_to_speech/providers/voice_controller.dart';
@@ -117,6 +118,40 @@ void main() {
 
     expect(system.activeLanguage, 'ja-JP');
     expect(system.spokenText, 'こんにちは');
+  });
+
+  testWidgets('Google-style engines list numbered voices, mark online ones, and speak with the choice',
+      (WidgetTester tester) async {
+    const String google = 'com.google.android.tts';
+    final FakeTtsService system = FakeTtsService(
+      engines: <String>[google],
+      languagesByEngine: <String, List<String>>{google: <String>['en-US']},
+      voicesByEngine: <String, List<EngineVoice>>{
+        google: <EngineVoice>[
+          EngineVoice(name: 'en-us-x-iol-local', locale: 'en-US', requiresNetwork: false),
+          EngineVoice(name: 'en-us-x-iol-network', locale: 'en-US', requiresNetwork: true),
+        ],
+      },
+    );
+    await _pumpApp(tester, system: system);
+    expect(find.text('Default'), findsNothing, reason: 'MyanmarTTS keeps its own voice list');
+
+    await tester.tap(find.text(_ON_DEVICE_LABEL));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(google).last);
+    await tester.pumpAndSettle();
+    expect(find.text('Default'), findsOneWidget);
+
+    await tester.tap(find.text('Default'));
+    await tester.pumpAndSettle();
+    expect(find.text('Voice 1'), findsOneWidget);
+    await tester.tap(find.text('Voice 2 · online').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.tap(find.text('Speak'));
+    await tester.pumpAndSettle();
+
+    expect(system.voiceWhenSpoken, 'en-us-x-iol-network');
   });
 
   testWidgets('an engine without languages shows why and disables Speak', (WidgetTester tester) async {

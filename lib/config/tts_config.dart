@@ -6,6 +6,21 @@ abstract final class TtsConfig {
   /// Android engine ရွေးချိန်တွင် ဤဘာသာ (`my`၊ `my-MM` စသည်) ပါပါက ပုံသေ ရွေးပေးသည် — app ၏ အဓိက အသုံးပြုသူများ မြန်မာ ဖြစ်၍။
   static const String BURMESE_LANGUAGE_CODE = 'my';
 
+  /// Android engine ၏ အသံ dropdown တွင် "ပုံသေ" (ဘာသာအတွက် engine ရွေးသော အသံ) ကို ကိုယ်စားပြုသည် —
+  /// Android voice အမည်များ (`en-us-x-...`) နှင့် မတိုက်နိုင်သော ပုံစံ။
+  static const String ENGINE_DEFAULT_VOICE_ID = 'engine-default';
+
+  /// Android `TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED` — data မဒေါင်းရသေးသော အသံ (ရွေးလျှင် မထွက်) ကို ဖယ်ရန်။
+  static const String VOICE_FEATURE_NOT_INSTALLED = 'notInstalled';
+
+  /// flutter_tts `getVoices` ၏ map key များနှင့် feature ခွဲသည့် အမှတ်အသား (plugin source ကြည့်ပါ)။
+  static const String VOICE_KEY_NAME = 'name';
+  static const String VOICE_KEY_LOCALE = 'locale';
+  static const String VOICE_KEY_NETWORK_REQUIRED = 'network_required';
+  static const String VOICE_KEY_FEATURES = 'features';
+  static const String VOICE_NETWORK_REQUIRED_TRUE = '1';
+  static const String VOICE_FEATURE_SEPARATOR = '\t';
+
   /// BCP 47 tag ၏ subtag ခွဲသည့် အမှတ်အသား (ဥပမာ `en-US`)။
   static const String LANGUAGE_TAG_SEPARATOR = '-';
 

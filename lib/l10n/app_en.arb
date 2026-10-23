@@ -9,6 +9,24 @@
   "retryDetectionButton": "Check engines again",
   "engineLabel": "Speech engine",
   "languageLabel": "Language",
+  "engineVoiceDefault": "Default",
+  "engineVoiceNumbered": "Voice {number}",
+  "@engineVoiceNumbered": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "engineVoiceOnline": "Voice {number} · online",
+  "@engineVoiceOnline": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "errorEngineVoiceUnavailable": "This voice could not be used. The engine default voice is used instead.",
   "errorNoLanguages": "This speech engine did not report any languages. Choose another engine, or check its settings and try again.",
   "errorLanguageUnavailable": "This speech engine cannot speak {language}. Choose another language or engine.",
   "@errorLanguageUnavailable": {
